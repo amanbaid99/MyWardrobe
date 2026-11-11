@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import { PGlite } from "@electric-sql/pglite";
 const alice = "11111111-1111-4111-8111-111111111111",
   bob = "22222222-2222-4222-8222-222222222222",
@@ -14,6 +14,17 @@ test("Wardrobe migration and RLS enforce ownership, membership and CRUD", async 
     await db.exec(
       await readFile(new URL("../docs/schema.sql", import.meta.url), "utf8"),
     );
+    for (const name of (
+      await readdir(new URL("../supabase/migrations/", import.meta.url))
+    )
+      .filter((n) => n.includes("wardrobe_usability_and_feedback"))
+      .sort())
+      await db.exec(
+        await readFile(
+          new URL("../supabase/migrations/" + name, import.meta.url),
+          "utf8",
+        ),
+      );
     assert.equal(
       (await db.query("select count(*)::int as n from wardrobe.memberships"))
         .rows[0].n,
@@ -96,8 +107,81 @@ test("Wardrobe migration and RLS enforce ownership, membership and CRUD", async 
       /permission denied/i,
     );
     await db.exec(`set request.jwt.claim.sub='${alice}';`);
-    await db.query("select public.wardrobe_delete_item($1)", [saved.item_id]);
+    // Persist recommendations with ownership and active-item validation, then exercise feedback isolation.
+    await db.query("select public.wardrobe_save_item($1)", [
+      JSON.stringify({
+        ...item,
+        item_id: saved.item_id,
+        lifecycle_status: "active",
+        season: "all",
+      }),
+    ]);
+    const rid = "44444444-4444-4444-8444-444444444444";
+    await db.query(
+      "select public.wardrobe_record_recommendation($1,$2,'casual','Test rationale','{}')",
+      [rid, [saved.item_id]],
+    );
+    await db.query(
+      "select public.wardrobe_rate_recommendation($1,1,'Good fit')",
+      [rid],
+    );
+    assert.equal((await boot()).feedback[0].rating, 1);
+    await db.exec(`set request.jwt.claim.sub='${bob}';`);
+    await assert.rejects(
+      db.query("select public.wardrobe_rate_recommendation($1,-1,'Not mine')", [
+        rid,
+      ]),
+      /row-level security|foreign key/i,
+    );
+    await assert.rejects(
+      db.query(
+        "select public.wardrobe_record_recommendation($1,$2,'casual','Invalid','{}')",
+        ["55555555-5555-4555-8555-555555555555", [saved.item_id]],
+      ),
+      /active|owner|security/i,
+    );
+    assert.equal((await boot()).feedback.length, 0);
+    await db.exec(`set request.jwt.claim.sub='${alice}';`);
+    await assert.rejects(
+      db.query(
+        "select public.wardrobe_record_recommendation($1,$2,'formal','Invalid','{}')",
+        ["66666666-6666-4666-8666-666666666666", [saved.item_id]],
+      ),
+      /occasion/i,
+    );
+    const exported = (
+      await db.query("select public.wardrobe_export_data() as data")
+    ).rows[0].data;
+    assert.equal(exported.recommendations.length, 1);
+    assert.equal(exported.feedback.length, 1);
+    await db.exec(
+      "reset role; create table public.tracker_preservation_probe(id int); insert into public.tracker_preservation_probe values(1); set role authenticated;",
+    );
+    await db.query("select public.wardrobe_clear_data()");
     assert.equal((await boot()).items.length, 0);
+    assert.equal((await boot()).feedback.length, 0);
+    assert.equal(
+      (await boot()).access,
+      true,
+      "clearing data retains membership",
+    );
+    await db.exec("reset role;");
+    assert.equal(
+      (
+        await db.query(
+          "select count(*)::int as n from public.tracker_preservation_probe",
+        )
+      ).rows[0].n,
+      1,
+      "clear cannot touch tracker tables",
+    );
+    assert.equal(
+      (await db.query("select count(*)::int as n from auth.users")).rows[0].n,
+      3,
+      "shared users remain",
+    );
+    await db.exec("set role authenticated;");
+
     await db.exec("reset role; set role anon;");
     await assert.rejects(
       db.query("select public.wardrobe_bootstrap()"),

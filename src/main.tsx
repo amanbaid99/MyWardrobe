@@ -1,5 +1,4 @@
 import React, { useEffect, useRef, useState, type FormEvent } from "react";
-import { createRoot } from "react-dom/client";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "./client";
 import {
@@ -8,51 +7,35 @@ import {
   duplicates,
   labels,
   samples,
-  suggest,
   type Category,
   type Item,
 } from "./domain";
 import { Garment } from "./Garment";
+import { Icon } from "./Icon";
+import { OutfitStudio } from "./OutfitStudio";
+import { Privacy } from "./Privacy";
+import {
+  blankItem,
+  emptyPreferences,
+  subtypes,
+  parseDescription,
+  type Feedback,
+  type Look,
+} from "./domain";
+import "@fontsource/dm-sans/latin-400.css";
+import "@fontsource/dm-sans/latin-500.css";
+import "@fontsource/dm-sans/latin-600.css";
+import "@fontsource/libre-caslon-display/latin-400.css";
 import { EmailSignIn } from "./EmailSignIn";
 import { authMessage, normalizeEmail } from "./auth";
 import "./style.css";
-const blank: Item = {
-  item_id: "",
-  display_name: "",
-  category: "top",
-  subcategory: "t-shirt",
-  primary_colour: "cream",
-  pattern: "solid",
-  fit: "unknown",
-  formality: "casual",
-  notes: "",
-  lifecycle_status: "active",
-  created_at: "",
-};
-function Icon({ name }: { name: string }) {
-  return (
-    <span aria-hidden="true" className="icon">
-      {(
-        {
-          wardrobe: "▥",
-          outfits: "✧",
-          preferences: "☷",
-          plus: "＋",
-          arrow: "↗",
-          search: "⌕",
-          close: "×",
-          lock: "♧",
-        } as Record<string, string>
-      )[name] || name}
-    </span>
-  );
-}
-function App() {
+const blank = blankItem;
+export function App() {
   const [session, setSession] = useState<Session | null>(null),
     [ready, setReady] = useState(false),
     [demo, setDemo] = useState(false),
     [items, setItems] = useState<Item[]>([]),
-    [page, setPage] = useState("wardrobe"),
+    [page, setPageState] = useState(() => location.hash.slice(1) || "wardrobe"),
     [category, setCategory] = useState("all"),
     [query, setQuery] = useState(""),
     [archive, setArchive] = useState(false),
@@ -63,8 +46,23 @@ function App() {
     [authOpen, setAuthOpen] = useState(false),
     [authMode, setAuthMode] = useState("login"),
     [access, setAccess] = useState(false),
-    [occasion, setOccasion] = useState("casual"),
-    [look, setLook] = useState<ReturnType<typeof suggest> | null>(null),
+    [loadState, setLoadState] = useState<
+      "idle" | "loading" | "ready" | "error"
+    >("idle"),
+    [loadVersion, reload] = useState(0),
+    [loadError, setLoadError] = useState(""),
+    [feedback, setFeedback] = useState<Feedback[]>([]),
+    [textEntry, setTextEntry] = useState(false),
+    [starterHidden, setStarterHidden] = useState(false),
+    [description, setDescription] = useState(""),
+    [candidates, setCandidates] = useState<{ key: string; item: Item }[]>([]),
+    [candidateKey, setCandidateKey] = useState(""),
+    [savedPrefs, setSavedPrefs] = useState(emptyPreferences),
+    [online, setOnline] = useState(navigator.onLine),
+    [confirmAction, setConfirmAction] = useState<"delete" | "clear" | null>(
+      null,
+    ),
+    [confirmText, setConfirmText] = useState(""),
     [prefs, setPrefs] = useState({
       style: "",
       fit: "",
@@ -74,15 +72,99 @@ function App() {
       budget: "",
     });
   const epoch = useRef(0);
+  const draftOwner = useRef<string | null>(null);
+  const navigationGuard = useRef({ dirty: false, page: "wardrobe" });
+  const editorInitial = useRef("");
+  const actionDialog = useRef<HTMLDialogElement>(null);
+  const openEditor = (item: Item, key = "") => {
+    setCandidateKey(key);
+    setError("");
+    editorInitial.current = JSON.stringify(item);
+    setEditor({ ...item });
+  };
+  const editorDirty =
+    !!editor && JSON.stringify(editor) !== editorInitial.current;
+  const preferencesDirty = JSON.stringify(prefs) !== JSON.stringify(savedPrefs);
+  navigationGuard.current = { dirty: preferencesDirty || editorDirty, page };
+  function closeEditor() {
+    if (busy) return;
+    if (editorDirty && !confirm("Discard your unsaved changes to this piece?"))
+      return;
+    setEditor(null);
+  }
+  function setPage(next: string) {
+    if (
+      (preferencesDirty || editorDirty) &&
+      !confirm("Leave this page and discard unsaved changes?")
+    )
+      return;
+    if (preferencesDirty) setPrefs(savedPrefs);
+    setEditor(null);
+    navigationGuard.current.dirty = false;
+    location.hash = next;
+  }
+  useEffect(() => {
+    const navigate = () => {
+      const next = location.hash.slice(1) || "wardrobe";
+      if (
+        next !== navigationGuard.current.page &&
+        navigationGuard.current.dirty &&
+        !confirm("Discard unsaved changes and leave this page?")
+      ) {
+        history.replaceState(null, "", `#${navigationGuard.current.page}`);
+        return;
+      }
+      setPageState(
+        ["wardrobe", "outfits", "preferences", "privacy"].includes(next)
+          ? next
+          : "wardrobe",
+      );
+    };
+    window.addEventListener("hashchange", navigate);
+    navigate();
+    return () => window.removeEventListener("hashchange", navigate);
+  }, []);
+  useEffect(() => {
+    const update = () => setOnline(navigator.onLine);
+    window.addEventListener("online", update);
+    window.addEventListener("offline", update);
+    return () => {
+      window.removeEventListener("online", update);
+      window.removeEventListener("offline", update);
+    };
+  }, []);
+  useEffect(() => {
+    const prevent = (e: BeforeUnloadEvent) => {
+      if (editorDirty || preferencesDirty || description || candidates.length) {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    };
+    window.addEventListener("beforeunload", prevent);
+    return () => window.removeEventListener("beforeunload", prevent);
+  }, [editorDirty, preferencesDirty, description, candidates.length]);
+  useEffect(() => {
+    if (confirmAction) actionDialog.current?.showModal();
+    else actionDialog.current?.close();
+    setConfirmText("");
+  }, [confirmAction]);
   const live = !!session && !demo;
   const dialog = useRef<HTMLDialogElement>(null);
   const authDialog = useRef<HTMLDialogElement>(null);
   useEffect(() => {
-    supabase.auth.getSession().then(({ data, error }) => {
-      if (error) setError(error.message);
-      setSession(data.session);
-      setReady(true);
-    });
+    supabase.auth
+      .getSession()
+      .then(({ data, error }) => {
+        if (error) setError(error.message);
+        setSession(data.session);
+        setReady(true);
+      })
+      .catch(() => {
+        setError(
+          "Could not restore your sign-in session. Please sign in again.",
+        );
+        setReady(true);
+      });
     const { data } = supabase.auth.onAuthStateChange((event, s) => {
       setSession(s);
       if (event === "PASSWORD_RECOVERY") {
@@ -93,43 +175,61 @@ function App() {
         epoch.current++;
         setItems([]);
         setAccess(false);
-        setLook(null);
+        setFeedback([]);
+        setBusy(false);
+        setLoadState("idle");
       }
     });
     return () => data.subscription.unsubscribe();
   }, []);
   useEffect(() => {
     const n = ++epoch.current;
-    setLook(null);
-    setEditor(null);
-    setPrefs({
-      style: "",
-      fit: "",
-      climate: "",
-      preferred_colours: "",
-      avoided_colours: "",
-      budget: "",
-    });
+    setItems([]);
+    setFeedback([]);
+    setAccess(false);
+    setLoadError("");
+    const owner = demo ? "demo" : session?.user.id;
+    const preserve = !!owner && draftOwner.current === owner;
+    if (owner && draftOwner.current !== owner) {
+      setEditor(null);
+      setPrefs(emptyPreferences);
+      setSavedPrefs(emptyPreferences);
+      setCandidates([]);
+      setDescription("");
+      draftOwner.current = owner;
+    }
     if (demo) {
       setItems(samples.map((i) => ({ ...i })));
       setAccess(true);
+      setLoadState("ready");
       return;
     }
-    setItems([]);
-    setAccess(false);
-    if (!session) return;
-    setBusy(true);
-    supabase.rpc("wardrobe_bootstrap").then(({ data, error }) => {
-      if (n !== epoch.current) return;
-      if (error) setError(error.message);
-      else {
+    if (!session) {
+      setLoadState("idle");
+      return;
+    }
+    setLoadState("loading");
+    Promise.resolve(supabase.rpc("wardrobe_bootstrap"))
+      .then(({ data, error }) => {
+        if (n !== epoch.current) return;
+        if (error) throw error;
         setAccess(data.access);
         setItems(data.items || []);
-        if (data.preferences) setPrefs(data.preferences);
-      }
-      setBusy(false);
-    });
-  }, [session?.user.id, demo]);
+        setFeedback(data.feedback || []);
+        const loaded = { ...emptyPreferences, ...data.preferences };
+        if (!preserve || !navigationGuard.current.dirty) setPrefs(loaded);
+        setSavedPrefs(loaded);
+        setLoadState("ready");
+      })
+      .catch((e) => {
+        if (n !== epoch.current) return;
+        setLoadError(e.message || "Could not load your wardrobe.");
+        setLoadState("error");
+      });
+    return () => {
+      epoch.current++;
+    };
+  }, [session?.user.id, demo, loadVersion]);
   useEffect(() => {
     if (editor) dialog.current?.showModal();
     else dialog.current?.close();
@@ -146,6 +246,13 @@ function App() {
   async function save(e: FormEvent) {
     e.preventDefault();
     if (!editor) return;
+    if (!demo && (!session || !access)) {
+      setError("Sign in again to save. Your draft is still open.");
+      setAuthMode("login");
+      setAuthOpen(true);
+      return;
+    }
+    const savingEpoch = epoch.current;
     setBusy(true);
     setError("");
     try {
@@ -163,12 +270,17 @@ function App() {
         if (error) throw error;
         saved = data;
       }
+      if (savingEpoch !== epoch.current) return;
+      setArchive(saved.lifecycle_status === "archived");
+      setCategory("all");
+      setQuery("");
+      setCandidates((p) => p.filter((c) => c.key !== candidateKey));
       setItems((prev) => [
         saved,
         ...prev.filter((i) => i.item_id !== saved.item_id),
       ]);
       setEditor(null);
-      setLook(null);
+
       setNotice("Your wardrobe is up to date.");
     } catch (e) {
       setError(
@@ -181,11 +293,7 @@ function App() {
     }
   }
   async function remove() {
-    if (
-      !editor ||
-      !confirm(`Delete “${editor.display_name}”? This cannot be undone.`)
-    )
-      return;
+    if (!editor) return;
     setBusy(true);
     try {
       if (live) {
@@ -195,8 +303,9 @@ function App() {
         if (error) throw error;
       }
       setItems((p) => p.filter((i) => i.item_id !== editor.item_id));
-      setLook(null);
+
       setEditor(null);
+      setConfirmAction(null);
       setNotice("Item deleted.");
     } catch (e) {
       setError((e as Error).message);
@@ -260,6 +369,7 @@ function App() {
         });
         if (error) throw error;
       }
+      setSavedPrefs({ ...prefs });
       setNotice(
         demo
           ? "Preview preferences updated for this session."
@@ -271,11 +381,28 @@ function App() {
       setBusy(false);
     }
   }
-  function exportData() {
+  async function exportData() {
+    let recommendations: unknown[] = [];
+    let exportedFeedback = feedback;
+    if (live) {
+      const { data, error } = await supabase.rpc("wardrobe_export_data");
+      if (error) {
+        setError("Export failed. Please try again.");
+        return;
+      }
+      recommendations = data.recommendations || [];
+      exportedFeedback = data.feedback || [];
+    }
     const blob = new Blob(
       [
         JSON.stringify(
-          { exported_at: new Date().toISOString(), items, preferences: prefs },
+          {
+            exported_at: new Date().toISOString(),
+            items,
+            preferences: savedPrefs,
+            feedback: exportedFeedback,
+            recommendations,
+          },
           null,
           2,
         ),
@@ -289,6 +416,77 @@ function App() {
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
+  async function recordLook(look: Look, occasion: string, id: string) {
+    if (demo) return id;
+    const { data, error } = await supabase.rpc(
+      "wardrobe_record_recommendation",
+      {
+        request_id: id,
+        owned_ids: look.items.map((i) => i.item_id),
+        selected_occasion: occasion,
+        explanation: look.rationale,
+        missing_slots: look.missing,
+      },
+    );
+    if (error)
+      throw new Error(
+        "Could not validate and save this look. Please reload your wardrobe and try again.",
+      );
+    if (JSON.stringify(data.missing_slots) !== JSON.stringify(look.missing))
+      throw new Error(
+        "Your preferences changed. Reload your wardrobe before styling again.",
+      );
+    return data.recommendation_id as string;
+  }
+  async function rateLook(
+    id: string,
+    rating: number,
+    reason: string,
+    look: Look,
+  ) {
+    if (live) {
+      const { error } = await supabase.rpc("wardrobe_rate_recommendation", {
+        target_id: id,
+        rating_value: rating,
+        reason_text: reason,
+      });
+      if (error) throw error;
+    }
+    setFeedback((p) => [
+      {
+        recommendation_id: id,
+        item_ids: look.items.map((i) => i.item_id),
+        rating,
+        reason,
+      },
+      ...p.filter((f) => f.recommendation_id !== id),
+    ]);
+  }
+  async function clearWardrobe() {
+    if (confirmText !== "DELETE WARDROBE") return;
+    setBusy(true);
+    setError("");
+    try {
+      if (live) {
+        const { error } = await supabase.rpc("wardrobe_clear_data");
+        if (error) throw error;
+      }
+      setItems([]);
+      setFeedback([]);
+      setPrefs(emptyPreferences);
+      setSavedPrefs(emptyPreferences);
+      setCandidates([]);
+      setDescription("");
+      setConfirmAction(null);
+      setNotice(
+        "Wardrobe data cleared. Your finance records and sign-in account are unchanged.",
+      );
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
   const active = items.filter((i) => i.lifecycle_status === "active");
   const filtered = items.filter(
     (i) =>
@@ -298,7 +496,7 @@ function App() {
       (category === "all" || i.category === category) &&
       `${i.display_name} ${i.subcategory} ${i.primary_colour} ${i.notes}`
         .toLowerCase()
-        .includes(query.toLowerCase()),
+        .includes(query.trim().toLowerCase()),
   );
   const showWorkspace = demo || live;
   const dup = editor ? duplicates(items, editor) : [];
@@ -322,11 +520,20 @@ function App() {
             ["wardrobe", "My wardrobe"],
             ["outfits", "Outfit studio"],
             ["preferences", "My preferences"],
+            ["privacy", "Privacy"],
           ].map(([id, label]) => (
             <button
               key={id}
               className={page === id ? "nav active" : "nav"}
-              onClick={() => setPage(id)}
+              aria-current={page === id ? "page" : undefined}
+              onClick={() => {
+                if (!showWorkspace && id !== "privacy") {
+                  setAuthMode("login");
+                  setAuthOpen(true);
+                  return;
+                }
+                setPage(id);
+              }}
             >
               <Icon name={id} />
               {label}
@@ -378,6 +585,20 @@ function App() {
               <button
                 className="text-button"
                 onClick={async () => {
+                  if (
+                    (editorDirty ||
+                      preferencesDirty ||
+                      description ||
+                      candidates.length) &&
+                    !confirm("Sign out and discard unsaved changes?")
+                  )
+                    return;
+                  setEditor(null);
+                  setPrefs(emptyPreferences);
+                  setSavedPrefs(emptyPreferences);
+                  setCandidates([]);
+                  setDescription("");
+                  draftOwner.current = null;
                   const { error } = await supabase.auth.signOut({
                     scope: "local",
                   });
@@ -413,7 +634,15 @@ function App() {
               ✓ {notice}
             </div>
           )}
-          {!showWorkspace ? (
+          {!online && (
+            <div className="offline-banner" role="status">
+              You’re offline. You can review loaded pieces, but saving and
+              sign-in need a connection.
+            </div>
+          )}
+          {page === "privacy" ? (
+            <Privacy />
+          ) : !showWorkspace ? (
             <>
               <section className="welcome">
                 <p className="eyebrow">A HOME FOR WHAT YOU WEAR</p>
@@ -472,7 +701,20 @@ function App() {
                 <span>✧</span>
               </div>
             </>
-          ) : !access && !busy ? (
+          ) : loadState === "loading" ? (
+            <section className="empty" role="status">
+              <h2>Opening your wardrobe…</h2>
+              <p>Your collection is on its way.</p>
+            </section>
+          ) : loadState === "error" ? (
+            <section className="empty">
+              <h2>We couldn’t load your wardrobe.</h2>
+              <p role="alert">{loadError}</p>
+              <button className="primary" onClick={() => reload((v) => v + 1)}>
+                Try again
+              </button>
+            </section>
+          ) : !access ? (
             <section className="empty">
               <h1>Your account is ready.</h1>
               <p>
@@ -511,8 +753,8 @@ function App() {
                     </div>
                     <button
                       className="primary"
-                      disabled={busy || !access}
-                      onClick={() => setEditor({ ...blank })}
+                      disabled={busy || !access || !online}
+                      onClick={() => openEditor({ ...blank })}
                     >
                       <Icon name="plus" /> Add a piece
                     </button>
@@ -530,7 +772,7 @@ function App() {
                           .toString()
                           .padStart(2, "0")}
                       </strong>
-                      <span>ways to start</span>
+                      <span>categories</span>
                     </div>
                     <p>
                       Buy thoughtfully.
@@ -539,12 +781,140 @@ function App() {
                     </p>
                     <span className="summary-star">✧</span>
                   </section>
+                  {active.length < 10 && !starterHidden && (
+                    <section className="starter-guide">
+                      <div>
+                        <b>
+                          {active.length
+                            ? `${active.length} of 10 starter pieces`
+                            : "Start with your everyday favourites"}
+                        </b>
+                        <p>
+                          Add a few tops, bottoms and shoes. More suitable
+                          pieces give you more outfit choices.
+                        </p>
+                        <progress
+                          max="10"
+                          value={Math.min(active.length, 10)}
+                          aria-label="Starter wardrobe progress"
+                        />
+                      </div>
+                      <div>
+                        <button
+                          className="secondary"
+                          onClick={() => {
+                            setTextEntry((v) => !v);
+                          }}
+                        >
+                          Describe pieces
+                        </button>
+                        <button
+                          className="text-button"
+                          onClick={() => setStarterHidden(true)}
+                        >
+                          Dismiss checklist
+                        </button>
+                      </div>
+                    </section>
+                  )}
+                  <div className="capture-actions">
+                    <button
+                      className="text-button"
+                      onClick={() => setTextEntry((v) => !v)}
+                    >
+                      Add from a description
+                    </button>
+                    <span className="fine">
+                      Photos are coming later. No images are uploaded.
+                    </span>
+                  </div>
+                  {textEntry && (
+                    <section className="text-capture">
+                      <h2>Describe what you own</h2>
+                      <p>
+                        One piece per line, or separate with semicolons (up to
+                        20 at a time). We recognise common garments, colours and
+                        fit words locally; review every suggestion before
+                        saving.
+                      </p>
+                      <label>
+                        Your descriptions
+                        <textarea
+                          value={description}
+                          maxLength={10000}
+                          onChange={(e) => setDescription(e.target.value)}
+                          placeholder={
+                            "Blue striped regular shirt\nBlack casual straight jeans; white sneakers"
+                          }
+                        />
+                      </label>
+                      <button
+                        className="secondary"
+                        disabled={!description.trim()}
+                        onClick={() => {
+                          if (
+                            description.split(/[\n;]/).filter((t) => t.trim())
+                              .length > 20
+                          ) {
+                            setError(
+                              "Please review up to 20 descriptions at a time. Your text is still here.",
+                            );
+                            return;
+                          }
+                          setError("");
+                          setCandidates((p) => [
+                            ...p,
+                            ...parseDescription(description).map((i) => ({
+                              key: crypto.randomUUID(),
+                              item: { ...blank, ...i },
+                            })),
+                          ]);
+                          setDescription("");
+                        }}
+                      >
+                        Review suggested pieces
+                      </button>
+                      {candidates.length > 0 && (
+                        <ul className="candidate-list">
+                          {candidates.map((c) => (
+                            <li key={c.key}>
+                              <div>
+                                <b>{c.item.display_name}</b>
+                                <small>
+                                  {c.item.primary_colour} · {c.item.subcategory}{" "}
+                                  · not saved yet
+                                </small>
+                              </div>
+                              <button
+                                className="secondary"
+                                onClick={() => openEditor(c.item, c.key)}
+                              >
+                                Review
+                              </button>
+                              <button
+                                className="text-button"
+                                aria-label={`Remove ${c.item.display_name} suggestion`}
+                                onClick={() =>
+                                  setCandidates((p) =>
+                                    p.filter((i) => i.key !== c.key),
+                                  )
+                                }
+                              >
+                                <Icon name="close" />
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </section>
+                  )}
                   <section className="collection-tools">
                     <div className="tabs" aria-label="Filter by category">
                       {["all", ...categories].map((c) => (
                         <button
                           key={c}
                           className={category === c ? "selected" : ""}
+                          aria-pressed={category === c}
                           onClick={() => setCategory(c)}
                         >
                           {c === "all" ? "All pieces" : labels[c as Category]}{" "}
@@ -581,7 +951,7 @@ function App() {
                         Archived
                       </label>
                       <button className="text-button" onClick={exportData}>
-                        Export ↗
+                        <Icon name="download" /> Export
                       </button>
                     </div>
                   </section>
@@ -604,14 +974,16 @@ function App() {
                           key={item.item_id}
                           onClick={() => {
                             setError("");
-                            setEditor({ ...item });
+                            openEditor({ ...item });
                           }}
                         >
                           <div className={`garment-canvas tone-${n % 4}`}>
                             <span className="category-tag">
                               {labels[item.category]}
                             </span>
-                            <span className="card-arrow">↗</span>
+                            <span className="card-arrow">
+                              <Icon name="edit" />
+                            </span>
                             <Garment item={item} />
                           </div>
                           <div className="card-info">
@@ -631,7 +1003,7 @@ function App() {
                       ))}
                       <button
                         className="add-card"
-                        onClick={() => setEditor({ ...blank })}
+                        onClick={() => openEditor({ ...blank })}
                       >
                         <span>＋</span>
                         <b>Room for a favourite</b>
@@ -642,21 +1014,34 @@ function App() {
                     <section className="empty">
                       <div className="empty-icon">♧</div>
                       <h2>
-                        {query
+                        {query.trim()
                           ? "No matching pieces"
                           : archive
                             ? "Nothing archived"
-                            : "Your wardrobe starts with one piece."}
+                            : category !== "all"
+                              ? `No ${labels[category as Category].toLowerCase()} yet`
+                              : "Your wardrobe starts with one piece."}
                       </h2>
                       <p>
-                        {query
-                          ? "Try another colour, name or category."
+                        {query.trim() || category !== "all"
+                          ? "Try another colour, name or category, or clear your filters."
                           : "Add a few everyday favourites. You can build from there."}
                       </p>
-                      {!archive && !query && (
+                      {(query.trim() || category !== "all") && (
+                        <button
+                          className="secondary"
+                          onClick={() => {
+                            setQuery("");
+                            setCategory("all");
+                          }}
+                        >
+                          Clear filters
+                        </button>
+                      )}
+                      {!archive && !query.trim() && (
                         <button
                           className="primary"
-                          onClick={() => setEditor({ ...blank })}
+                          onClick={() => openEditor({ ...blank })}
                         >
                           Add your first piece ＋
                         </button>
@@ -664,104 +1049,23 @@ function App() {
                     </section>
                   )}
                   <footer className="page-footer">
-                    <span>Thoughtfully collected. Uniquely yours.</span>
+                    <span>
+                      Install Wardrobe from your browser menu for quick access.
+                      Online connection required.
+                    </span>
                     <span>WARDROBE / THE PERSONAL EDIT</span>
                   </footer>
                 </>
               )}
               {page === "outfits" && (
-                <>
-                  <section className="page-heading">
-                    <div>
-                      <p className="eyebrow">MAKE MORE OF WHAT YOU OWN</p>
-                      <h1>
-                        Outfit studio<span className="heading-dot">.</span>
-                      </h1>
-                      <p>Your pieces. A fresh perspective.</p>
-                    </div>
-                  </section>
-                  <div className="studio-controls">
-                    <label>
-                      What’s the occasion?
-                      <select
-                        value={occasion}
-                        onChange={(e) => {
-                          setOccasion(e.target.value);
-                          setLook(null);
-                        }}
-                      >
-                        <option value="casual">An everyday kind of day</option>
-                        <option value="smart">
-                          Something a little smarter
-                        </option>
-                        <option value="formal">A formal occasion</option>
-                      </select>
-                    </label>
-                    <button
-                      className="primary"
-                      onClick={() =>
-                        setLook(suggest(items, occasion, look?.signature))
-                      }
-                    >
-                      {look ? "Try another combination" : "Put a look together"}{" "}
-                      ✧
-                    </button>
-                  </div>
-                  <p className="fine">
-                    A first look at the outfit engine: simple category
-                    combinations, with occasion matches prioritised. AI styling
-                    and feedback learning are coming next.
-                  </p>
-                  {look ? (
-                    <>
-                      <div className="look-heading">
-                        <h2>
-                          {look.missing.length
-                            ? "A starting point"
-                            : "Your next everyday look"}
-                        </h2>
-                        <span className="pill">
-                          {look.missing.length
-                            ? "Incomplete outfit"
-                            : "From your wardrobe"}
-                        </span>
-                      </div>
-                      <section className="garment-grid outfit-grid">
-                        {look.items.map((i) => (
-                          <div key={i.item_id} className="garment-card">
-                            <div className="garment-canvas">
-                              <Garment item={i} />
-                            </div>
-                            <div className="card-info">
-                              <h2>{i.display_name}</h2>
-                              <p>Owned · {i.primary_colour}</p>
-                            </div>
-                          </div>
-                        ))}
-                      </section>
-                      {look.missing.length > 0 && (
-                        <div className="missing">
-                          Missing from this look:{" "}
-                          <b>{look.missing.join(", ")}</b>. These pieces are not
-                          in your active wardrobe.
-                        </div>
-                      )}
-                      <p className="fine">
-                        Only active pieces from this wardrobe appear above.
-                        Regenerate changes the combination when alternatives
-                        exist.
-                      </p>
-                    </>
-                  ) : (
-                    <div className="studio-empty">
-                      <span>✧</span>
-                      <h2>A good outfit is already in there.</h2>
-                      <p>
-                        Start with what you have. Let’s see what goes together.
-                      </p>
-                    </div>
-                  )}
-                </>
+                <OutfitStudio
+                  items={items}
+                  preferences={savedPrefs}
+                  feedback={feedback}
+                  onEdit={openEditor}
+                  onRecord={recordLook}
+                  onRate={rateLook}
+                />
               )}
               {page === "preferences" && (
                 <>
@@ -785,25 +1089,96 @@ function App() {
                     }).map(([key, label]) => (
                       <label key={key}>
                         {label}
-                        <input
-                          maxLength={500}
-                          value={prefs[key as keyof typeof prefs]}
-                          onChange={(e) =>
-                            setPrefs({ ...prefs, [key]: e.target.value })
-                          }
-                          placeholder="Make it your own…"
-                        />
+                        {key === "climate" || key === "fit" ? (
+                          <select
+                            value={prefs[key as "climate" | "fit"]}
+                            onChange={(e) =>
+                              setPrefs({ ...prefs, [key]: e.target.value })
+                            }
+                          >
+                            <option value="">No preference</option>
+                            {(key === "climate"
+                              ? ["hot", "mild", "cold"]
+                              : [
+                                  "regular",
+                                  "relaxed",
+                                  "slim",
+                                  "straight",
+                                  "oversized",
+                                ]
+                            ).map((v) => (
+                              <option key={v}>{v}</option>
+                            ))}
+                            {prefs[key as "climate" | "fit"] &&
+                              !(
+                                key === "climate"
+                                  ? ["hot", "mild", "cold"]
+                                  : [
+                                      "regular",
+                                      "relaxed",
+                                      "slim",
+                                      "straight",
+                                      "oversized",
+                                    ]
+                              ).includes(prefs[key as "climate" | "fit"]) && (
+                                <option value={prefs[key as "climate" | "fit"]}>
+                                  {prefs[key as "climate" | "fit"]}
+                                </option>
+                              )}
+                          </select>
+                        ) : (
+                          <input
+                            maxLength={500}
+                            value={prefs[key as keyof typeof prefs]}
+                            onChange={(e) =>
+                              setPrefs({ ...prefs, [key]: e.target.value })
+                            }
+                            placeholder={
+                              key === "avoided_colours"
+                                ? "e.g. red, yellow (excluded from looks)"
+                                : key === "preferred_colours"
+                                  ? "e.g. blue, cream"
+                                  : "Make it your own…"
+                            }
+                          />
+                        )}
                       </label>
                     ))}
                     <button className="primary" disabled={busy}>
                       Save preferences ↗
                     </button>
                     <p className="fine">
-                      Stored for upcoming personalised styling. This
-                      foundation’s outfit combinations don’t yet use these
-                      preferences. Photos and AI requests are disabled.
+                      Preferred colours, fit, style words and known climate
+                      needs influence outfit ranking. Avoided colours are
+                      excluded. Budget is saved for future shopping suggestions;
+                      it does not affect owned outfits.
                     </p>
                   </form>
+                  <section className="account-tools">
+                    <h2>Your Wardrobe data</h2>
+                    <p>
+                      Export or clear only Wardrobe data. Your finance records
+                      and shared sign-in identity are preserved.
+                    </p>
+                    <button className="secondary" onClick={exportData}>
+                      <Icon name="download" /> Export all Wardrobe data
+                    </button>
+                    <button
+                      className="danger"
+                      onClick={() => {
+                        setError("");
+                        setConfirmAction("clear");
+                      }}
+                    >
+                      Clear Wardrobe data
+                    </button>
+                    <button
+                      className="text-button"
+                      onClick={() => setPage("privacy")}
+                    >
+                      Read the privacy notice
+                    </button>
+                  </section>
                 </>
               )}
             </>
@@ -812,9 +1187,13 @@ function App() {
       </div>
       <dialog
         ref={dialog}
-        onCancel={() => setEditor(null)}
+        aria-labelledby="item-editor-title"
+        onCancel={(e) => {
+          e.preventDefault();
+          closeEditor();
+        }}
         onClick={(e) => {
-          if (e.target === dialog.current && !busy) setEditor(null);
+          if (e.target === dialog.current) closeEditor();
         }}
       >
         {editor && (
@@ -822,7 +1201,7 @@ function App() {
             <div className="modal-heading">
               <div>
                 <p className="eyebrow">YOUR WARDROBE, ONE PIECE AT A TIME</p>
-                <h2>
+                <h2 id="item-editor-title">
                   {editor.item_id
                     ? "The finer details"
                     : "Meet your next favourite."}
@@ -833,7 +1212,7 @@ function App() {
                 aria-label="Close item editor"
                 className="close"
                 disabled={busy}
-                onClick={() => setEditor(null)}
+                onClick={closeEditor}
               >
                 ×
               </button>
@@ -887,14 +1266,22 @@ function App() {
                   </label>
                   <label>
                     Type
-                    <input
-                      required
-                      maxLength={60}
-                      value={editor.subcategory}
+                    <select
+                      value={
+                        subtypes[editor.category].includes(editor.subcategory)
+                          ? editor.subcategory
+                          : "other"
+                      }
                       onChange={(e) =>
                         setEditor({ ...editor, subcategory: e.target.value })
                       }
-                    />
+                    >
+                      {subtypes[editor.category].map((t) => (
+                        <option key={t} value={t}>
+                          {t}
+                        </option>
+                      ))}
+                    </select>
                   </label>
                 </div>
                 <label>
@@ -950,6 +1337,62 @@ function App() {
                     }
                   />
                 </label>
+                <details className="item-optional">
+                  <summary>
+                    More details <span className="optional">Optional</span>
+                  </summary>
+                  <label>
+                    Season
+                    <select
+                      value={editor.season || "unknown"}
+                      onChange={(e) =>
+                        setEditor({ ...editor, season: e.target.value })
+                      }
+                    >
+                      {[
+                        "unknown",
+                        "all",
+                        "summer",
+                        "winter",
+                        "spring",
+                        "autumn",
+                      ].map((v) => (
+                        <option key={v}>{v}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    Style tags
+                    <input
+                      maxLength={200}
+                      value={editor.style_tags || ""}
+                      placeholder="e.g. minimal, vintage"
+                      onChange={(e) =>
+                        setEditor({ ...editor, style_tags: e.target.value })
+                      }
+                    />
+                  </label>
+                  <label>
+                    Material (only if known)
+                    <input
+                      maxLength={60}
+                      value={editor.material || "unknown"}
+                      onChange={(e) =>
+                        setEditor({ ...editor, material: e.target.value })
+                      }
+                    />
+                  </label>
+                  <label>
+                    Garment length
+                    <input
+                      maxLength={60}
+                      value={editor.garment_length || "unknown"}
+                      onChange={(e) =>
+                        setEditor({ ...editor, garment_length: e.target.value })
+                      }
+                    />
+                  </label>
+                </details>
                 <label>
                   Notes
                   <textarea
@@ -996,9 +1439,33 @@ function App() {
               {editor.item_id && (
                 <button
                   type="button"
+                  className="secondary"
+                  disabled={busy}
+                  onClick={() =>
+                    setEditor({
+                      ...editor,
+                      lifecycle_status:
+                        editor.lifecycle_status === "active"
+                          ? "archived"
+                          : "active",
+                    })
+                  }
+                >
+                  <Icon name="archive" />
+                  {editor.lifecycle_status === "active"
+                    ? "Mark archived"
+                    : "Restore piece"}
+                </button>
+              )}
+              {editor.item_id && (
+                <button
+                  type="button"
                   className="danger"
                   disabled={busy}
-                  onClick={remove}
+                  onClick={() => {
+                    setError("");
+                    setConfirmAction("delete");
+                  }}
                 >
                   Delete piece
                 </button>
@@ -1007,7 +1474,7 @@ function App() {
                 type="button"
                 className="secondary"
                 disabled={busy}
-                onClick={() => setEditor(null)}
+                onClick={closeEditor}
               >
                 Cancel
               </button>
@@ -1020,6 +1487,66 @@ function App() {
             </p>
           </form>
         )}
+      </dialog>
+      <dialog
+        ref={actionDialog}
+        className="confirm-dialog"
+        aria-labelledby="confirm-title"
+        onCancel={(e) => {
+          e.preventDefault();
+          if (!busy) setConfirmAction(null);
+        }}
+      >
+        <h2 id="confirm-title">
+          {confirmAction === "clear"
+            ? "Clear your Wardrobe data?"
+            : "Permanently delete this piece?"}
+        </h2>
+        <p>
+          {confirmAction === "clear"
+            ? "This removes your Wardrobe pieces, preferences, recommendations and feedback. Finance records, your sign-in account and membership stay unchanged. Export first if you need a copy."
+            : `“${editor?.display_name || "This piece"}” will be deleted permanently. You can archive it instead to keep it for later.`}
+        </p>
+        {confirmAction === "clear" && (
+          <label>
+            Type DELETE WARDROBE to confirm
+            <input
+              value={confirmText}
+              onChange={(e) => setConfirmText(e.target.value)}
+              autoComplete="off"
+            />
+          </label>
+        )}
+        {error && (
+          <p role="alert" className="alert">
+            {error}
+          </p>
+        )}
+        <div className="modal-footer">
+          <button
+            className="secondary"
+            disabled={busy}
+            onClick={() => setConfirmAction(null)}
+          >
+            Keep my data
+          </button>
+          <button
+            className="primary danger-fill"
+            disabled={
+              busy ||
+              (confirmAction === "clear" && confirmText !== "DELETE WARDROBE")
+            }
+            onClick={() =>
+              confirmAction === "clear" ? clearWardrobe() : remove()
+            }
+          >
+            {busy
+              ? "Working…"
+              : confirmAction === "clear"
+                ? "Clear Wardrobe data"
+                : "Delete permanently"}
+          </button>
+        </div>
       </dialog>
       <dialog
         ref={authDialog}
@@ -1136,12 +1663,3 @@ function App() {
     </>
   );
 }
-createRoot(document.getElementById("root")!).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>,
-);
-if ("serviceWorker" in navigator)
-  window.addEventListener("load", () => {
-    navigator.serviceWorker.register("/sw.js").catch(() => {});
-  });

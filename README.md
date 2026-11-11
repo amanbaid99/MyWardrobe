@@ -4,25 +4,29 @@ Private, mobile-first digital wardrobe, built with React + TypeScript + Vite and
 
 ## Run
 
-Node 24 recommended. `npm ci`, then `npm run dev`. `npm run build` checks TypeScript and builds `dist/`. `npm test` runs authentication/domain regression tests and one isolated PostgreSQL/RLS integration test. `.env.example` contains public Supabase browser settings; copy to `.env.local` only to override them. Never put OpenRouter or service-role secrets in any `VITE_` variable.
+Node 24 recommended. `npm ci`, then `npm run dev`. `npm run build` checks TypeScript and builds `dist/`. `npm test` runs 17 authentication/domain/database checks; `npm run test:ui` runs five DOM interaction checks. These are not device screenshot or full signed-in browser tests. `.env.example` contains public Supabase browser settings; copy to `.env.local` only to override them. Never put OpenRouter or service-role secrets in any `VITE_` variable.
 
 ## Current delivery
 
-Foundation UI: email-code sign-in for existing tracker identities, optional password login, invited signup, password reset/update, inventory CRUD/archive/search/filter/export, duplicate warnings, deterministic garment vectors, preferences, initial rule-based outfit combinations, sample preview mode and install manifest. No AI requests or photo uploads occur.
+Mobile-first inventory with email-code sign-in, readable controls, stronger contrast, self-hosted fonts, search/filter/archive/edit/export, guarded drafts and retryable loading errors. Navigation has hash URLs and supports Back/reload.
 
-**Database foundation is applied and verified.** The user explicitly approved the revised Wardrobe-only migration and selected their existing tracker account for access. Exactly that account was enrolled. See the handoff for the approval history and verification limits.
+Outfit Studio now arranges garments on **one coordinated flat-lay canvas**: top/one-piece, bottoms, shoes and optional cold-weather layer, with clickable details. No humanoid or virtual try-on is used. Occasion rules, avoided colours, preferred colours/fit/style, known season/climate and persisted ratings influence selection. New combinations are shown before recycling the candidate pool. Server-side validation checks that referenced items are owned, active and compatible with occasion/known constraints.
 
-Private app: https://wardrobe-studio-aman.biggerglade1.chatgpt.site
+Text descriptions are parsed locally into editable proposals (one piece per line or semicolon, up to 20 at a time). This is a limited word-based parser, not AI extraction. Review every field before saving. Photos and external AI remain disabled.
 
-Source branch: https://github.com/amanbaid99/MyWardrobe/tree/wardrobe-foundation
+Preferences include full Wardrobe-data export and a deliberately confirmed Wardrobe-only clear action. Shared finance records, sign-in identity and membership are preserved. The privacy page explains storage and scope. PWA installation is online-only; no private inventory is cached offline.
 
-Sign in using the approved existing tracker account. “Explore a sample wardrobe” is separate, in-memory preview data.
+Production: https://my-wardrobe-wine.vercel.app
+
+Source: https://github.com/amanbaid99/MyWardrobe/tree/wardrobe-foundation
+
+Sample mode is clearly labelled and in memory only. Existing authorized tracker identities can sign in with an email code; no users are automatically enrolled.
 
 ## Database boundary
 
-Project: `sbkpirchaaljlwzgntrf` (`tracker`). Tables live in `wardrobe`; four `public.wardrobe_*` SECURITY INVOKER RPC functions expose only Wardrobe operations and preserve RLS. Do not expose the entire schema or change existing tracker/Auth objects. Memberships are administered separately; clients cannot grant membership. Signup remains subject to tracker's existing invite trigger. Wardrobe deletion must never delete a shared Auth account or tracker records.
+Project: `sbkpirchaaljlwzgntrf` (`tracker`). Tables live in `wardrobe`; scoped `public.wardrobe_*` SECURITY INVOKER RPC functions expose only Wardrobe operations and preserve RLS. Do not expose the entire schema or change existing tracker/Auth objects. Memberships are administered separately; clients cannot grant membership. Signup remains subject to tracker's existing invite trigger. Wardrobe deletion must never delete a shared Auth account or tracker records.
 
-Applied migration: `supabase/migrations/20261111111732_wardrobe_foundation.sql`. `docs/schema.sql` is a human-readable copy and must stay identical. Do not apply both. Existing database and Auth settings must be preserved.
+Applied migration: `supabase/migrations/20261111111732_wardrobe_foundation.sql`. `docs/schema.sql` is a human-readable copy and must stay identical. Do not apply both. Extension migration `20261111123317_wardrobe_usability_and_feedback.sql` is also applied; it adds optional garment attributes, validated recommendations, feedback, export and scoped clear functions. Never reapply either migration to tracker. Existing finance tables and Auth settings must be preserved.
 
 ## Project map
 
@@ -42,7 +46,7 @@ Private Sites deployment, identity in `.openai/hosting.json`. GitHub origin rema
 
 ## Scope still to build
 
-Natural-language extraction, multi-garment photo review, temporary-image lifecycle, server-side OpenRouter adapter, full outfit ranking/validation, persisted recommendation history and feedback learning, privacy/account controls, acceptance testing. The current outfit studio is explicitly a rules preview, not the completed recommendation system. Preferences are saved but not yet used in ranking.
+External AI/natural-language extraction, photo/multiple-item detection and temporary-image cleanup require provider/retention consent and secure backend credentials. Google sign-in and email-link/reset callbacks need verified Wardrobe redirect setup while preserving tracker settings. Live signed-in browser/device installation testing remains outstanding due review-environment browser/network limitations. Saved outfits/wishlist remain later scope; no shopping links, weather or wear tracking are added.
 
 ## Signing in
 

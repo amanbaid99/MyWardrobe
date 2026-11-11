@@ -47,3 +47,7 @@ Latest verified Git-triggered deployment before this final documentation update:
 Build and all seven tests passed before deployment. No browser login/CRUD or device install flow is verified. Production signup confirmation and password-recovery redirects still need the exact production URL added to Supabase's existing redirect allowlist, preserving tracker settings. Normal email/password login does not use that callback setting.
 
 Unauthenticated HTTP verification from this executor was blocked by the environment proxy (`CONNECT tunnel failed, response 403`, server `envoy`), not an application response. Browser startup also failed with `Browser Use could not read requirements`. Authenticated connector HTTP checks passed; public production access is established by the approved Vercel configuration, not by a successful anonymous browser test.
+
+## Coordinated outfit release
+
+Usability/functionality update adds the flat-lay outfit canvas (no humanoid), local text proposals, preference-aware ranking, persisted ratings and scoped privacy controls. Database extension `20261111123317_wardrobe_usability_and_feedback` is already applied; no deployment-time migration command is required. Build uses bundled fonts and the new src/entry.tsx entrypoint. Validation commands: npm test (17 tests), npm run test:ui (five DOM tests), npm run build. Do not equate DOM tests with real device/visual verification.

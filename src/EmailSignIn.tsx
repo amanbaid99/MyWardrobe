@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { supabase } from "./client";
 import {
   authMessage,
@@ -20,7 +20,14 @@ export function EmailSignIn({
     [sent, setSent] = useState(false),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
-    [retryAt, setRetryAt] = useState(0);
+    [retryAt, setRetryAt] = useState(0),
+    [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    if (!retryAt) return;
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [retryAt]);
+  const remaining = Math.max(0, Math.ceil((retryAt - now) / 1000));
   async function send(e?: FormEvent) {
     e?.preventDefault();
     if (busy) return;
@@ -36,6 +43,7 @@ export function EmailSignIn({
       setEmail(normalizeEmail(email));
       setSent(true);
       setCode("");
+      setNow(Date.now());
       setRetryAt(Date.now() + 60000);
     } catch (e) {
       setError(authMessage((e as Error).message));
@@ -109,8 +117,11 @@ export function EmailSignIn({
             >
               Use a different email
             </button>
-            <button disabled={busy} onClick={() => void send()}>
-              Send a new code
+            <button
+              disabled={busy || remaining > 0}
+              onClick={() => void send()}
+            >
+              {remaining > 0 ? `Resend in ${remaining}s` : "Send a new code"}
             </button>
           </div>
         </>

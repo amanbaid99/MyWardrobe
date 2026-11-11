@@ -1,6 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { suggest, duplicates, samples, type Item } from "./domain.ts";
+import {
+  suggest,
+  duplicates,
+  samples,
+  emptyPreferences,
+  parseDescription,
+  type Item,
+} from "./domain.ts";
 test("recommendations only contain active inventory; complete looks use required slots", () => {
   const result = suggest(samples, "casual");
   assert.equal(result.missing.length, 0);
@@ -40,4 +47,67 @@ test("one-piece plus shoes counts as complete", () => {
 test("duplicate warning excludes self and archived items", () => {
   assert.equal(duplicates(samples, { ...samples[0], item_id: "" }).length, 1);
   assert.equal(duplicates(samples, samples[0]).length, 0);
+});
+test("regeneration reaches every available candidate before repeating", () => {
+  let history: string[] = [],
+    previous = "";
+  for (let n = 0; n < 4; n++) {
+    const look = suggest(samples, "casual", previous, { history });
+    assert(!history.includes(look.signature));
+    history.push(look.signature);
+    previous = look.signature;
+  }
+  assert(suggest(samples, "casual", previous, { history }).exhausted);
+});
+test("formal occasion never includes casual or smart garments", () => {
+  const look = suggest(samples, "formal");
+  assert.equal(look.items.length, 0);
+  assert.deepEqual(look.missing, ["Top", "Bottom", "Shoes"]);
+});
+test("avoided colours are excluded and preferred colours influence ranking", () => {
+  const p = {
+    ...emptyPreferences,
+    avoided_colours: "cream",
+    preferred_colours: "blue",
+  };
+  const look = suggest(samples, "casual", "", { preferences: p });
+  assert(look.items.every((i) => i.primary_colour !== "cream"));
+  assert(look.items.some((i) => i.primary_colour === "blue"));
+});
+test("a dress can outrank incomplete separates", () => {
+  const dress = {
+    ...samples[0],
+    item_id: "dress",
+    category: "one_piece" as const,
+    formality: "formal",
+  };
+  const shoes = { ...samples[4], formality: "formal" };
+  const look = suggest([dress, shoes], "formal");
+  assert.equal(look.missing.length, 0);
+});
+test("feedback alters ranking without inventing inventory", () => {
+  const first = suggest(samples, "casual");
+  const look = suggest(samples, "casual", "", {
+    feedback: [
+      {
+        recommendation_id: "r",
+        item_ids: first.items.map((i) => i.item_id),
+        rating: -1,
+      },
+    ],
+  });
+  assert.notEqual(look.signature, first.signature);
+  assert(look.items.every((i) => samples.some((s) => s.item_id === i.item_id)));
+});
+test("local description capture proposes multiple editable pieces and unknown attributes", () => {
+  const result = parseDescription(
+    "blue striped shirt; black jeans\nwhite sneakers",
+  );
+  assert.equal(result.length, 3);
+  assert.equal(result[0].subcategory, "shirt");
+  assert.equal(result[0].primary_colour, "blue");
+  assert.equal(result[1].category, "bottom");
+  assert.equal(result[2].category, "shoes");
+  assert.equal(result[0].formality, "unknown");
+  assert.equal(result[0].material, "unknown");
 });

@@ -77,3 +77,18 @@ The alternative Oxford-shirt combinations were never reached. A formal request r
 5. **Keep later scope later:** saved outfits, wishlist/gap insights are v1.5; shopping links, weather, wear tracking and cost-per-wear remain v2 unless the user deliberately reprioritizes.
 
 The current build is a useful manual-inventory foundation, not the finished AI wardrobe described in the PRD. Improve its usability and recommendation correctness before adding shopping/weather/social scope.
+
+## Implementation follow-up — 11 November 2026
+
+User authorized the fixes and then requested an outfit composition without a humanoid. The update delivers one coordinated flat-lay canvas with individually labelled/clickable garments, rather than three separate cards.
+
+- UI-01–UI-10: horizontal control direction, readable type scale, darker text, touch sizing, responsive headings/actions, SVG icons, normalized card title space, accessible selected/modal state, and bundled fonts implemented. Real device/visual verification is still required.
+- UX-01, UX-02, UX-04–UX-09: retryable bootstrap errors separate from no-access; discard/before-unload safeguards; same-identity session draft retention; OTP cooldown; contextual empty states and filter reset; saved-item visibility; hash navigation; starter guide; isolated loading status and error boundary implemented.
+- UX-10: explicit archive action and named permanent-delete confirmation implemented; undo/trash is not added.
+- FN-01–FN-03 and FN-05: strict formal/smart rules, nonrepeating candidate history, preferences, rationale, server-validated records and persisted ratings implemented. Ranking uses known structured attributes; it does not infer weather, season or taste beyond entered data/feedback.
+- FN-04: local word-based multi-description proposal/review added. This is not full AI natural-language or photo extraction. No photos/AI requests are transmitted.
+- FN-06/FN-07: category-specific subtype choices, Unknown defaults, optional season/material/length/style tags, and distinct shorts/skirt/jumpsuit/boot/heel/sandal/accessory silhouettes added. Not all optional attributes alter the vector drawing.
+- FN-08/FN-09: privacy notice, full Wardrobe export, typed-confirmation Wardrobe-only clearing, online status and install guidance added. Offline inventory caching remains deliberately deferred.
+- UX-03 remains open: shared Auth redirect/email-template settings and Google flow were not changed. Email-code sign-in remains the reliable primary path; email links may open finance.
+
+Checks: 17 domain/auth/database tests and five DOM interaction tests pass; production TypeScript/Vite build passes. Isolated database tests verify cross-user rejection, invalid-occasion rejection, feedback isolation and Wardrobe-clear preservation of tracker/Auth records. Live transactional item/recommendation/rating checks passed and were rolled back. Browser layout and signed-in end-to-end behavior must not be described as verified.
