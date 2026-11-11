@@ -1,0 +1,109 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import { PGlite } from "@electric-sql/pglite";
+const alice = "11111111-1111-4111-8111-111111111111",
+  bob = "22222222-2222-4222-8222-222222222222",
+  outsider = "33333333-3333-4333-8333-333333333333";
+test("Wardrobe migration and RLS enforce ownership, membership and CRUD", async () => {
+  const db = new PGlite();
+  try {
+    await db.exec(
+      `create role anon; create role authenticated; create schema auth; create table auth.users(id uuid primary key); create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$; grant usage on schema auth to authenticated; grant execute on function auth.uid() to authenticated; insert into auth.users values ('${alice}'),('${bob}'),('${outsider}');`,
+    );
+    await db.exec(
+      await readFile(new URL("../docs/schema.sql", import.meta.url), "utf8"),
+    );
+    assert.equal(
+      (await db.query("select count(*)::int as n from wardrobe.memberships"))
+        .rows[0].n,
+      0,
+      "migration must never enroll users automatically",
+    );
+    await db.exec(
+      `insert into wardrobe.memberships(user_id) values('${alice}'),('${bob}'); set role authenticated; set request.jwt.claim.sub='${alice}';`,
+    );
+    const item = {
+      display_name: "Test shirt",
+      category: "top",
+      subcategory: "shirt",
+      primary_colour: "blue",
+      pattern: "solid",
+      fit: "regular",
+      formality: "casual",
+      notes: "",
+      lifecycle_status: "active",
+      owner_user_id: bob,
+    };
+    const result = await db.query(
+      "select public.wardrobe_save_item($1) as item",
+      [JSON.stringify(item)],
+    );
+    const saved = result.rows[0].item;
+    assert.equal(
+      saved.owner_user_id,
+      alice,
+      "client-supplied owner is ignored",
+    );
+    const boot = async () =>
+      (await db.query("select public.wardrobe_bootstrap() as data")).rows[0]
+        .data;
+    assert.equal((await boot()).items.length, 1);
+    await db.exec(`set request.jwt.claim.sub='${bob}';`);
+    assert.equal(
+      (await boot()).items.length,
+      0,
+      "second user cannot read first user inventory",
+    );
+    await assert.rejects(
+      db.query("select public.wardrobe_save_item($1)", [
+        JSON.stringify({ ...item, item_id: saved.item_id }),
+      ]),
+      /not found|access denied/i,
+    );
+    await db.query("select public.wardrobe_delete_item($1)", [saved.item_id]);
+    await db.exec(`set request.jwt.claim.sub='${alice}';`);
+    assert.equal((await boot()).items.length, 1, "other user cannot delete");
+    await assert.rejects(
+      db.query("update wardrobe.items set owner_user_id=$1 where item_id=$2", [
+        bob,
+        saved.item_id,
+      ]),
+      /row-level security/i,
+    );
+    await db.query("select public.wardrobe_save_item($1)", [
+      JSON.stringify({
+        ...item,
+        item_id: saved.item_id,
+        lifecycle_status: "archived",
+      }),
+    ]);
+    assert.equal((await boot()).items[0].lifecycle_status, "archived");
+    await db.query("select public.wardrobe_save_preferences($1)", [
+      JSON.stringify({ style: "minimal" }),
+    ]);
+    assert.equal((await boot()).preferences.style, "minimal");
+    await db.exec(`set request.jwt.claim.sub='${outsider}';`);
+    assert.equal((await boot()).access, false);
+    await assert.rejects(
+      db.query("select public.wardrobe_save_item($1)", [JSON.stringify(item)]),
+      /row-level security/i,
+    );
+    await assert.rejects(
+      db.query("insert into wardrobe.memberships(user_id) values($1)", [
+        outsider,
+      ]),
+      /permission denied/i,
+    );
+    await db.exec(`set request.jwt.claim.sub='${alice}';`);
+    await db.query("select public.wardrobe_delete_item($1)", [saved.item_id]);
+    assert.equal((await boot()).items.length, 0);
+    await db.exec("reset role; set role anon;");
+    await assert.rejects(
+      db.query("select public.wardrobe_bootstrap()"),
+      /permission denied/i,
+    );
+  } finally {
+    await db.close();
+  }
+});
