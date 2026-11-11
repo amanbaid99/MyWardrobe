@@ -11,7 +11,7 @@ The owner requested production hosting on 11 November 2026, mentioning GitHub Pa
 - Use the approved Vercel team `aman-projects8` (`team_2vj8roDxluy7rbBO8Sg9O4BB`). Do not deploy into another account to work around authorization failure.
 - Preserve the private Sites deployment and `.openai/hosting.json`.
 - Client uses only the public Supabase URL and publishable key. Never set an OpenRouter/service-role secret with a `VITE_` prefix.
-- GitHub Pages administration calls were blocked in this environment. Vercel returned a 403 requiring team authorization; a one-time consent link was presented to the owner. Do not claim production deployment before a READY result and known URL.
+- GitHub Pages administration calls were blocked in this environment. The owner authorized the Vercel team connection. Production deployment is now READY; IDs and checks are below.
 
 ## Auth redirects
 
@@ -21,6 +21,23 @@ Normal email/password login talks directly to the existing Supabase Auth project
 
 After deployment, inspect its READY state, aliases and build logs. Check the HTML and static/PWA asset responses, then test browser flows if browser infrastructure is available. Real account login and CRUD require an interactive session; do not obtain the user's password or manufacture shared Auth users for tests. Keep signed-in data out of caches, traces and committed artifacts.
 
-## Current status
+## Current production deployment
 
-Prepared for Vercel. Team authorization is pending. Project/deployment IDs and the verified final URL will be recorded here after creation. No Vercel project has been created by this production-hosting step yet.
+- URL: https://my-wardrobe-wine.vercel.app
+- Additional alias: https://my-wardrobe-aman-projects8.vercel.app
+- Vercel project: `prj_VluP5OBKeh9uiLAJx9dqsNOAB39C` (`my-wardrobe`).
+- Team: `team_2vj8roDxluy7rbBO8Sg9O4BB` (`aman-projects8`).
+- Deployment: `dpl_DYcGVgPN3DCQdkQcQ24puWmVVUzH`, target production, READY.
+- Deployed source: `f58ff1a62e924298ba28f995273d80e6587fe49f`, GitHub branch `wardrobe-foundation`.
+- Framework Vite; Node 24.x; no AI secrets configured.
+- Native deployment response verified READY and assigned production aliases.
+- Authenticated HTTP checks verified HTML, JS bundle, manifest and service worker return 200. These requests used Vercel's authenticated fetch, so they do not establish anonymous accessibility or signed-in browser operation.
+- Existing private Sites publication is preserved.
+
+## Access decision pending
+
+Vercel's inherited `ssoProtection.deploymentType` remains `all_except_custom_domains`. Automatic approval review rejected changing this to `preview`: removing protection from production URLs needs explicit user approval beyond deploying. Do not change protection, create alternate unprotected URLs or work around the rejection. The proposed final change is to allow production visitors to reach the app without Vercel login while keeping previews protected; Supabase login, memberships and RLS remain required for account data. Ask the owner for this precise approval. No protection settings changed from the rejected attempt.
+
+## Verification limits
+
+Build and all seven tests passed before deployment. No browser login/CRUD or device install flow is verified. Production signup confirmation and password-recovery redirects still need the exact production URL added to Supabase's existing redirect allowlist, preserving tracker settings. Normal email/password login does not use that callback setting.

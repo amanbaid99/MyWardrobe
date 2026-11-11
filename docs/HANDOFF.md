@@ -87,3 +87,9 @@ Foundation app source commit: `44bd91d8a2042053011c60c56035342cf0aff114`. Pushed
 ## Production hosting request (11 November 2026)
 
 User asked for production hosting (GitHub Pages or similar). Vercel recommended for the static frontend plus future server-side AI. Read docs/DEPLOYMENT.md. GitHub administration API is blocked; Vercel connection requires team authorization for `aman-projects8`. Team authorization link presented through the user-input UI. Checked-in vercel.json prepares Vite deployment; no production Vercel project has been created yet. Keep existing private Sites access unchanged.
+
+## Vercel production deployment (11 November 2026)
+
+Owner authorized team access. Created Vercel project `prj_VluP5OBKeh9uiLAJx9dqsNOAB39C` in `aman-projects8`, linked to `amanbaid99/MyWardrobe`, Node 24.x. Production deployment `dpl_DYcGVgPN3DCQdkQcQ24puWmVVUzH` is READY at https://my-wardrobe-wine.vercel.app from source commit `f58ff1a62e924298ba28f995273d80e6587fe49f`. HTML, JS bundle, manifest and service-worker authenticated HTTP checks return 200. See docs/DEPLOYMENT.md for full release state.
+
+Automatic review rejected changing inherited Vercel protection to previews only; current setting remains `all_except_custom_domains`. Explicit production-access approval is still required before changing that setting. This is a separate decision from the already-approved deployment and Supabase migration. Do not bypass it. No Supabase, membership or tracker changes were made during deployment.
