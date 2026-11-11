@@ -59,3 +59,15 @@ Read current git status and this file; inspect deployment state for the recorded
 - Managed preview relay failed twice with `timed out waiting for relay readiness` on port 4173. Browser QA cannot be claimed from that path; do not launch an alternate preview server to bypass infrastructure.
 - Live database migration, API persistence, email redirect flows and device installation remain unverified.
 - PWA PNG icons generated locally from the app mark; service worker does not cache sensitive data or provide offline browsing.
+
+## Publication record
+
+Foundation app source commit: `44bd91d8a2042053011c60c56035342cf0aff114`. Pushed to GitHub branch `wardrobe-foundation` and Sites branch `main`. Private deployment requested for that exact commit:
+
+- Deployment: `appgdep_6af44e257ba081918eb7c293865c40ad`
+- Saved version: `appgprj_6af44b6fcdac8191af566132c8a4433e~appgver_9a56655e0ed481919d4546ce54285d43`
+- Last observed state at 11:16 UTC: pending, no URL. Reconcile this deployment before retrying publication; do not create duplicate versions or Sites.
+- Direct browser startup also failed with `Browser Use could not read requirements`. Browser QA remains unavailable. Production logs returned `worker_logs_unavailable` while deployment was pending.
+- Explicit approval question for revised migration was sent to user. No answer received at this documentation checkpoint. Do not treat elapsed time as approval.
+
+This publication-status documentation can be committed to GitHub separately from the deployed app commit. Do not claim the documentation commit itself was deployed unless a matching deployment is completed.

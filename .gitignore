@@ -4,3 +4,5 @@ dist/
 !.env.example
 work/
 .openai/local*
+
+supabase/.temp/
