@@ -56,7 +56,7 @@ Use the same email as the finance app, choose **Email me a sign-in code**, and e
 
 The primary capture flow is text/photo → AI analysis → editable review → explicit selection/save. CSV/JSON uploads are no longer offered in this flow. Existing JSON export remains a backup feature.
 
-`OPENROUTER_API_KEY` is a server-only Production environment variable in Vercel; never place it in a VITE\_ variable. `OPENROUTER_MODEL` is optional. Without an explicit model, the endpoint discovers a currently listed free vision model. Routing requests providers that deny data collection and disables provider fallback; analysis can fail if no compatible private/free provider is available. No paid fallback is configured.
+`OPENROUTER_API_KEY` is a server-only Production environment variable in Vercel; never place it in a VITE\_ variable. `OPENROUTER_MODEL` is optional. Without an explicit model, the endpoint discovers a currently listed free vision model. Routing still denies provider data collection. It permits provider fallback under that same constraint and tries at most two listed free models; text-only capture no longer requires vision. Analysis can still fail if no compatible private/free provider is available. No paid fallback is configured.
 
 Limits: 20 proposals per response; 10 MB source photo resized locally to at most 1600px and a 2.5 MB server image payload; 10 requests/hour/user, 100/day/user and 900/day/project (rolling windows). Quota metadata contains only account ID and timestamp, not photos/text. Keys and quota availability do not guarantee provider availability.
 
