@@ -127,3 +127,46 @@ test("edited garment needs discard confirmation and retains the draft when decli
       .value,
   ).toBe("Unsaved favourite");
 });
+test("bulk import reviews duplicates and never reimports completed rows", async () => {
+  const { BulkImport } = await import("./BulkImport");
+  const save = vi
+    .fn()
+    .mockImplementation(async (item) => ({ ...item, item_id: "saved-id" }));
+  const file = new File(["ignored"], "wardrobe.json", {
+    type: "application/json",
+  });
+  Object.defineProperty(file, "text", {
+    value: async () =>
+      JSON.stringify([
+        {
+          display_name: "New shirt",
+          category: "top",
+          subcategory: "shirt",
+          primary_colour: "pink",
+        },
+        { ...samples[0] },
+      ]),
+  });
+  render(<BulkImport items={samples} onSave={save} onClose={vi.fn()} />);
+  fireEvent.change(screen.getByLabelText(/Choose CSV or JSON/), {
+    target: { files: [file] },
+  });
+  await screen.findByText("Possible duplicate");
+  expect(
+    (screen.getByRole("checkbox", { name: "Select row 1" }) as HTMLInputElement)
+      .checked,
+  ).toBe(true);
+  expect(
+    (screen.getByRole("checkbox", { name: "Select row 2" }) as HTMLInputElement)
+      .checked,
+  ).toBe(false);
+  fireEvent.click(
+    screen.getByRole("button", { name: "Import 1 selected pieces" }),
+  );
+  await screen.findByText("Saved");
+  expect(save).toHaveBeenCalledTimes(1);
+  expect(
+    (screen.getByRole("checkbox", { name: "Select row 1" }) as HTMLInputElement)
+      .disabled,
+  ).toBe(true);
+});

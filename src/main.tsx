@@ -11,6 +11,7 @@ import {
   type Item,
 } from "./domain";
 import { Garment } from "./Garment";
+import { BulkImport } from "./BulkImport";
 import { Icon } from "./Icon";
 import { OutfitStudio } from "./OutfitStudio";
 import { Privacy } from "./Privacy";
@@ -53,6 +54,7 @@ export function App() {
     [loadError, setLoadError] = useState(""),
     [feedback, setFeedback] = useState<Feedback[]>([]),
     [textEntry, setTextEntry] = useState(false),
+    [importOpen, setImportOpen] = useState(false),
     [starterHidden, setStarterHidden] = useState(false),
     [description, setDescription] = useState(""),
     [candidates, setCandidates] = useState<{ key: string; item: Item }[]>([]),
@@ -176,6 +178,7 @@ export function App() {
         setItems([]);
         setAccess(false);
         setFeedback([]);
+        setImportOpen(false);
         setBusy(false);
         setLoadState("idle");
       }
@@ -291,6 +294,35 @@ export function App() {
     } finally {
       setBusy(false);
     }
+  }
+  async function importItem(item: Item): Promise<Item> {
+    const start = epoch.current;
+    if (draftOwner.current !== (demo ? "demo" : session?.user.id))
+      throw new Error(
+        "Your account changed. Reopen the import for the current account.",
+      );
+    if (!demo && (!session || !access))
+      throw new Error("Sign in again before importing.");
+    let saved: Item;
+    if (demo)
+      saved = {
+        ...item,
+        item_id: crypto.randomUUID(),
+        created_at: new Date().toISOString(),
+      };
+    else {
+      const { data, error } = await supabase.rpc("wardrobe_save_item", {
+        payload: item,
+      });
+      if (error) throw error;
+      saved = data;
+    }
+    if (start !== epoch.current)
+      throw new Error(
+        "Your session changed. Reload your wardrobe before continuing.",
+      );
+    setItems((p) => [saved, ...p.filter((i) => i.item_id !== saved.item_id)]);
+    return saved;
   }
   async function remove() {
     if (!editor) return;
@@ -819,6 +851,13 @@ export function App() {
                   )}
                   <div className="capture-actions">
                     <button
+                      className="secondary"
+                      disabled={!online || busy}
+                      onClick={() => setImportOpen(true)}
+                    >
+                      Bulk import CSV / JSON
+                    </button>
+                    <button
                       className="text-button"
                       onClick={() => setTextEntry((v) => !v)}
                     >
@@ -1185,6 +1224,14 @@ export function App() {
           )}
         </main>
       </div>
+      {importOpen && (
+        <BulkImport
+          key={demo ? "demo" : session?.user.id || "signed-out"}
+          items={items}
+          onSave={importItem}
+          onClose={() => setImportOpen(false)}
+        />
+      )}
       <dialog
         ref={dialog}
         aria-labelledby="item-editor-title"

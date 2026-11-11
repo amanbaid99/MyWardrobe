@@ -51,3 +51,7 @@ External AI/natural-language extraction, photo/multiple-item detection and tempo
 ## Signing in
 
 Use the same email as the finance app, choose **Email me a sign-in code**, and enter the latest emailed code in Wardrobe. Finance uses email-code/Google sign-in; a Google password is not a Supabase password. Password sign-in remains available only for accounts with a separately set Supabase password. Email-code requests never create new accounts or grant membership. Enter the code in Wardrobe rather than using an email link that may open finance. No shared Auth settings, templates, passwords or invite rules were changed for this fix.
+
+## Bulk import
+
+In **My wardrobe → Bulk import CSV / JSON**, download the CSV template or choose a `.csv` / `.json` file (500 pieces / 2 MB maximum). Review and correct the preview, then import selected rows. Suspected duplicates start unchecked. Existing JSON exports can restore garment records as new items; preferences, ratings and outfits are not imported. Saved rows stay saved if another row fails. Files are parsed locally; only selected garment details are sent to Supabase. No photos are imported.
