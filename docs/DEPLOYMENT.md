@@ -51,3 +51,5 @@ Unauthenticated HTTP verification from this executor was blocked by the environm
 ## Coordinated outfit release
 
 Usability/functionality update adds the flat-lay outfit canvas (no humanoid), local text proposals, preference-aware ranking, persisted ratings and scoped privacy controls. Database extension `20261111123317_wardrobe_usability_and_feedback` is already applied; no deployment-time migration command is required. Build uses bundled fonts and the new src/entry.tsx entrypoint. Validation commands: npm test (17 tests), npm run test:ui (five DOM tests), npm run build. Do not equate DOM tests with real device/visual verification.
+
+Verified application release: commit `34cba3206343d36824909e64ffac6fc4e2ab8e2d`, deployment `dpl_n7LeXzabfXEAV6voUvafJgc67JK8`, READY. Production HTML and JS/CSS returned 200; coordinated-canvas and bundled-font markers were verified. Later documentation-only Git pushes may change the deployment ID without changing app behavior.
