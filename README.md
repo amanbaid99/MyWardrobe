@@ -36,6 +36,8 @@ Applied migration: `supabase/migrations/20261111111732_wardrobe_foundation.sql`.
 
 ## Hosting
 
+Production hosting setup is in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md), with reproducible Vercel configuration in `vercel.json`. The production deployment is pending Vercel team authorization; the existing private preview remains available.
+
 Private Sites deployment, identity in `.openai/hosting.json`. GitHub origin remains `amanbaid99/MyWardrobe`. Deployment uses the same source via a separate Sites remote. Source is portable: static `dist/` can also be hosted on Vercel. Configure the eventual production origin in Supabase's redirect allowlist before testing password recovery or invited signup; preserve tracker URLs and Site URL.
 
 ## Scope still to build

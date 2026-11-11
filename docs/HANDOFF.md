@@ -83,3 +83,7 @@ Foundation app source commit: `44bd91d8a2042053011c60c56035342cf0aff114`. Pushed
 2. Configure additional Auth redirect origins only if needed, preserving tracker settings. Signup/reset email flows are not verified.
 3. Implement reviewed plain-text capture, then server-side AI integration with secure secret setup. Photo consent and provider-retention review remain outstanding.
 4. Keep this handoff and README current. Migration is applied: never execute the foundation SQL again on tracker. Local migration filename was aligned to the server-assigned migration version after application.
+
+## Production hosting request (11 November 2026)
+
+User asked for production hosting (GitHub Pages or similar). Vercel recommended for the static frontend plus future server-side AI. Read docs/DEPLOYMENT.md. GitHub administration API is blocked; Vercel connection requires team authorization for `aman-projects8`. Team authorization link presented through the user-input UI. Checked-in vercel.json prepares Vite deployment; no production Vercel project has been created yet. Keep existing private Sites access unchanged.
