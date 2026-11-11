@@ -4,11 +4,11 @@ Private, mobile-first digital wardrobe, built with React + TypeScript + Vite and
 
 ## Run
 
-Node 24 recommended. `npm ci`, then `npm run dev`. `npm run build` checks TypeScript and builds `dist/`. `npm test` runs six domain tests and one isolated PostgreSQL/RLS integration test. `.env.example` contains public Supabase browser settings; copy to `.env.local` only to override them. Never put OpenRouter or service-role secrets in any `VITE_` variable.
+Node 24 recommended. `npm ci`, then `npm run dev`. `npm run build` checks TypeScript and builds `dist/`. `npm test` runs authentication/domain regression tests and one isolated PostgreSQL/RLS integration test. `.env.example` contains public Supabase browser settings; copy to `.env.local` only to override them. Never put OpenRouter or service-role secrets in any `VITE_` variable.
 
 ## Current delivery
 
-Foundation UI: shared email/password login, invited signup, password reset/update, inventory CRUD/archive/search/filter/export, duplicate warnings, deterministic garment vectors, preferences, initial rule-based outfit combinations, sample preview mode and install manifest. No AI requests or photo uploads occur.
+Foundation UI: email-code sign-in for existing tracker identities, optional password login, invited signup, password reset/update, inventory CRUD/archive/search/filter/export, duplicate warnings, deterministic garment vectors, preferences, initial rule-based outfit combinations, sample preview mode and install manifest. No AI requests or photo uploads occur.
 
 **Database foundation is applied and verified.** The user explicitly approved the revised Wardrobe-only migration and selected their existing tracker account for access. Exactly that account was enrolled. See the handoff for the approval history and verification limits.
 
@@ -43,3 +43,7 @@ Private Sites deployment, identity in `.openai/hosting.json`. GitHub origin rema
 ## Scope still to build
 
 Natural-language extraction, multi-garment photo review, temporary-image lifecycle, server-side OpenRouter adapter, full outfit ranking/validation, persisted recommendation history and feedback learning, privacy/account controls, acceptance testing. The current outfit studio is explicitly a rules preview, not the completed recommendation system. Preferences are saved but not yet used in ranking.
+
+## Signing in
+
+Use the same email as the finance app, choose **Email me a sign-in code**, and enter the latest emailed code in Wardrobe. Finance uses email-code/Google sign-in; a Google password is not a Supabase password. Password sign-in remains available only for accounts with a separately set Supabase password. Email-code requests never create new accounts or grant membership. Enter the code in Wardrobe rather than using an email link that may open finance. No shared Auth settings, templates, passwords or invite rules were changed for this fix.

@@ -13,6 +13,8 @@ import {
   type Item,
 } from "./domain";
 import { Garment } from "./Garment";
+import { EmailSignIn } from "./EmailSignIn";
+import { authMessage, normalizeEmail } from "./auth";
 import "./style.css";
 const blank: Item = {
   item_id: "",
@@ -205,7 +207,7 @@ function App() {
   async function auth(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const f = new FormData(e.currentTarget),
-      email = String(f.get("email") || ""),
+      email = normalizeEmail(String(f.get("email") || "")),
       password = String(f.get("password") || "");
     setBusy(true);
     setError("");
@@ -243,7 +245,7 @@ function App() {
         setAuthOpen(false);
       }
     } catch (e) {
-      setError((e as Error).message);
+      setError(authMessage((e as Error).message));
     } finally {
       setBusy(false);
     }
@@ -1047,66 +1049,89 @@ function App() {
             ? "This updates the password shared with tracker."
             : "Your existing tracker account works here too."}
         </p>
-        <form onSubmit={auth}>
-          {authMode !== "update" && (
-            <label>
-              Email address
-              <input
-                autoFocus
-                name="email"
-                type="email"
-                autoComplete="email"
-                required
-              />
-            </label>
-          )}
-          {authMode !== "reset" && (
-            <label>
-              Password
-              <input
-                name="password"
-                type="password"
-                minLength={authMode === "login" ? 1 : 8}
-                autoComplete={
-                  authMode === "login" ? "current-password" : "new-password"
+        {authMode === "login" ? (
+          <EmailSignIn
+            key={String(authOpen)}
+            onSignedIn={() => {
+              setError("");
+              setDemo(false);
+              setAuthOpen(false);
+            }}
+            onPassword={() => {
+              setError("");
+              setAuthMode("password");
+            }}
+            onCreateAccount={() => {
+              setError("");
+              setAuthMode("signup");
+            }}
+          />
+        ) : (
+          <>
+            <form onSubmit={auth}>
+              {authMode !== "update" && (
+                <label>
+                  Email address
+                  <input
+                    autoFocus
+                    name="email"
+                    type="email"
+                    autoComplete="email"
+                    required
+                  />
+                </label>
+              )}
+              {authMode !== "reset" && (
+                <label>
+                  Password
+                  <input
+                    name="password"
+                    type="password"
+                    minLength={authMode === "password" ? 1 : 8}
+                    autoComplete={
+                      authMode === "password"
+                        ? "current-password"
+                        : "new-password"
+                    }
+                    required
+                  />
+                </label>
+              )}
+              {error && (
+                <p className="alert" role="alert">
+                  {error}
+                </p>
+              )}
+              <button className="primary" disabled={busy}>
+                {busy
+                  ? "One moment…"
+                  : authMode === "reset"
+                    ? "Send reset link"
+                    : authMode === "signup"
+                      ? "Create account"
+                      : authMode === "update"
+                        ? "Update password"
+                        : "Sign in ↗"}
+              </button>
+            </form>
+            <div className="auth-links">
+              <button
+                onClick={() =>
+                  setAuthMode(authMode === "login" ? "signup" : "login")
                 }
-                required
-              />
-            </label>
-          )}
-          {error && (
-            <p className="alert" role="alert">
-              {error}
-            </p>
-          )}
-          <button className="primary" disabled={busy}>
-            {busy
-              ? "One moment…"
-              : authMode === "reset"
-                ? "Send reset link"
-                : authMode === "signup"
-                  ? "Create account"
-                  : authMode === "update"
-                    ? "Update password"
-                    : "Sign in ↗"}
-          </button>
-        </form>
-        <div className="auth-links">
-          <button
-            onClick={() =>
-              setAuthMode(authMode === "login" ? "signup" : "login")
-            }
-          >
-            {authMode === "login"
-              ? "Have an invitation? Create account"
-              : "Back to sign in"}
-          </button>
-          {authMode === "login" && (
-            <button onClick={() => setAuthMode("reset")}>
-              Forgot password?
-            </button>
-          )}
-        </div>
+              >
+                {authMode === "login"
+                  ? "Have an invitation? Create account"
+                  : "Back to sign in"}
+              </button>
+              {authMode === "password" && (
+                <button onClick={() => setAuthMode("reset")}>
+                  Forgot password?
+                </button>
+              )}
+            </div>
+          </>
+        )}
       </dialog>
     </>
   );

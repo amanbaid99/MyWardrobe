@@ -1334,3 +1334,15 @@ input[type="checkbox"] {
   background: #23352a77;
   backdrop-filter: blur(5px);
 }
+.code-notice {
+  padding: 13px;
+  background: #edf0e4;
+  color: #758169;
+  border-radius: 5px;
+  font-size: 11px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+.auth-modal .fine {
+  margin-bottom: 20px;
+}
