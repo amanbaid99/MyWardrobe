@@ -11,6 +11,8 @@ import {
   type Item,
 } from "./domain";
 import { Garment } from "./Garment";
+import { GarmentDetails } from "./GarmentDetails";
+import { ColourChoices, FitChoices } from "./Choices";
 import { BulkImport } from "./BulkImport";
 import { Icon } from "./Icon";
 import { OutfitStudio } from "./OutfitStudio";
@@ -55,6 +57,9 @@ export function App() {
     [feedback, setFeedback] = useState<Feedback[]>([]),
     [textEntry, setTextEntry] = useState(false),
     [importOpen, setImportOpen] = useState(false),
+    [viewed, setViewed] = useState<Item | null>(null),
+    [selectMode, setSelectMode] = useState(false),
+    [selectedIds, setSelectedIds] = useState<Set<string>>(new Set()),
     [starterHidden, setStarterHidden] = useState(false),
     [description, setDescription] = useState(""),
     [candidates, setCandidates] = useState<{ key: string; item: Item }[]>([]),
@@ -188,6 +193,9 @@ export function App() {
   useEffect(() => {
     const n = ++epoch.current;
     setItems([]);
+    setViewed(null);
+    setSelectedIds(new Set());
+    setSelectMode(false);
     setFeedback([]);
     setAccess(false);
     setLoadError("");
@@ -323,6 +331,49 @@ export function App() {
       );
     setItems((p) => [saved, ...p.filter((i) => i.item_id !== saved.item_id)]);
     return saved;
+  }
+  function exportSelected() {
+    const selected = items.filter((i) => selectedIds.has(i.item_id));
+    const blob = new Blob(
+      [
+        JSON.stringify(
+          { items: selected, exported_at: new Date().toISOString() },
+          null,
+          2,
+        ),
+      ],
+      { type: "application/json" },
+    );
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "wardrobe-selected.json";
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+  async function archiveSelected() {
+    setBusy(true);
+    setError("");
+    try {
+      for (const item of items.filter((i) => selectedIds.has(i.item_id))) {
+        await importItem({
+          ...item,
+          lifecycle_status: archive ? "active" : "archived",
+        });
+        setSelectedIds((p) => {
+          const n = new Set(p);
+          n.delete(item.item_id);
+          return n;
+        });
+      }
+      setNotice(
+        archive ? "Selected pieces restored." : "Selected pieces archived.",
+      );
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
   }
   async function remove() {
     if (!editor) return;
@@ -835,7 +886,7 @@ export function App() {
                         <button
                           className="secondary"
                           onClick={() => {
-                            setTextEntry((v) => !v);
+                            setImportOpen(true);
                           }}
                         >
                           Describe pieces
@@ -855,16 +906,17 @@ export function App() {
                       disabled={!online || busy}
                       onClick={() => setImportOpen(true)}
                     >
-                      Bulk import CSV / JSON
+                      Add by text / photo
                     </button>
                     <button
                       className="text-button"
-                      onClick={() => setTextEntry((v) => !v)}
+                      onClick={() => setImportOpen(true)}
                     >
-                      Add from a description
+                      Describe or photograph your clothes
                     </button>
                     <span className="fine">
-                      Photos are coming later. No images are uploaded.
+                      AI analysis proposes pieces for your review. Manual entry
+                      is always available.
                     </span>
                   </div>
                   {textEntry && (
@@ -994,6 +1046,33 @@ export function App() {
                       </button>
                     </div>
                   </section>
+                  <div className="selection-tools">
+                    <button
+                      className="secondary"
+                      onClick={() => {
+                        setSelectMode((v) => !v);
+                        setSelectedIds(new Set());
+                      }}
+                    >
+                      {selectMode ? "Finish selecting" : "Select pieces"}
+                    </button>
+                    {selectMode && (
+                      <button
+                        className="text-button"
+                        onClick={() =>
+                          setSelectedIds(
+                            (p) =>
+                              new Set([
+                                ...p,
+                                ...filtered.map((i) => i.item_id),
+                              ]),
+                          )
+                        }
+                      >
+                        Select visible pieces
+                      </button>
+                    )}
+                  </div>
                   <div className="grid-caption">
                     <span>
                       {filtered.length} {archive ? "ARCHIVED" : "EVERYDAY"}{" "}
@@ -1008,37 +1087,57 @@ export function App() {
                   ) : filtered.length ? (
                     <section className="garment-grid">
                       {filtered.map((item, n) => (
-                        <button
-                          className="garment-card"
-                          key={item.item_id}
-                          onClick={() => {
-                            setError("");
-                            openEditor({ ...item });
-                          }}
-                        >
-                          <div className={`garment-canvas tone-${n % 4}`}>
-                            <span className="category-tag">
-                              {labels[item.category]}
-                            </span>
-                            <span className="card-arrow">
-                              <Icon name="edit" />
-                            </span>
-                            <Garment item={item} />
-                          </div>
-                          <div className="card-info">
-                            <h2>{item.display_name}</h2>
-                            <p>
-                              <span
-                                className="swatch"
-                                style={{
-                                  background: colours[item.primary_colour],
-                                }}
+                        <div className="garment-wrapper" key={item.item_id}>
+                          {selectMode && (
+                            <label className="piece-select">
+                              <input
+                                type="checkbox"
+                                aria-label={`Select ${item.display_name}`}
+                                checked={selectedIds.has(item.item_id)}
+                                onChange={(e) =>
+                                  setSelectedIds((p) => {
+                                    const n = new Set(p);
+                                    e.target.checked
+                                      ? n.add(item.item_id)
+                                      : n.delete(item.item_id);
+                                    return n;
+                                  })
+                                }
                               />
-                              {item.primary_colour} <span>·</span>{" "}
-                              {item.subcategory}
-                            </p>
-                          </div>
-                        </button>
+                            </label>
+                          )}
+                          <button
+                            className="garment-card"
+                            key={item.item_id}
+                            onClick={() => {
+                              setError("");
+                              setViewed({ ...item });
+                            }}
+                          >
+                            <div className={`garment-canvas tone-${n % 4}`}>
+                              <span className="category-tag">
+                                {labels[item.category]}
+                              </span>
+                              <span className="card-arrow">
+                                <Icon name="edit" />
+                              </span>
+                              <Garment item={item} />
+                            </div>
+                            <div className="card-info">
+                              <h2>{item.display_name}</h2>
+                              <p>
+                                <span
+                                  className="swatch"
+                                  style={{
+                                    background: colours[item.primary_colour],
+                                  }}
+                                />
+                                {item.primary_colour} <span>·</span>{" "}
+                                {item.subcategory}
+                              </p>
+                            </div>
+                          </button>
+                        </div>
                       ))}
                       <button
                         className="add-card"
@@ -1101,7 +1200,7 @@ export function App() {
                   items={items}
                   preferences={savedPrefs}
                   feedback={feedback}
-                  onEdit={openEditor}
+                  onEdit={(item) => setViewed(item)}
                   onRecord={recordLook}
                   onRate={rateLook}
                 />
@@ -1224,6 +1323,74 @@ export function App() {
           )}
         </main>
       </div>
+      <nav className="mobile-bottom-nav" aria-label="Mobile navigation">
+        {[
+          ["wardrobe", "Wardrobe"],
+          ["outfits", "Outfits"],
+          ["preferences", "Settings"],
+        ].map(([id, title]) => (
+          <button
+            key={id}
+            aria-current={page === id ? "page" : undefined}
+            onClick={() => {
+              if (!showWorkspace) {
+                setAuthMode("login");
+                setAuthOpen(true);
+                return;
+              }
+              setPage(id);
+            }}
+          >
+            <Icon name={id} />
+            <span>{title}</span>
+          </button>
+        ))}
+      </nav>
+      {selectMode && selectedIds.size > 0 && page === "wardrobe" && (
+        <div
+          className="bulk-action-bar"
+          role="region"
+          aria-label="Selected garment actions"
+        >
+          <b>{selectedIds.size} selected</b>
+          <button
+            className="secondary"
+            disabled={busy}
+            onClick={exportSelected}
+          >
+            Export selected
+          </button>
+          <button
+            className="primary"
+            disabled={busy || !online}
+            onClick={archiveSelected}
+          >
+            {busy
+              ? "Saving…"
+              : archive
+                ? "Restore selected"
+                : "Archive selected"}
+          </button>
+          <button
+            className="text-button"
+            disabled={busy}
+            onClick={() => setSelectedIds(new Set())}
+          >
+            Clear
+          </button>
+        </div>
+      )}
+      {viewed && (
+        <GarmentDetails
+          item={viewed}
+          onClose={() => setViewed(null)}
+          onEdit={() => {
+            const item = viewed;
+            setViewed(null);
+            openEditor(item);
+          }}
+        />
+      )}
       {importOpen && (
         <BulkImport
           key={demo ? "demo" : session?.user.id || "signed-out"}
@@ -1331,19 +1498,15 @@ export function App() {
                     </select>
                   </label>
                 </div>
-                <label>
-                  Primary colour
-                  <select
+                <div className="field-choice">
+                  <span>Primary colour</span>
+                  <ColourChoices
                     value={editor.primary_colour}
-                    onChange={(e) =>
-                      setEditor({ ...editor, primary_colour: e.target.value })
+                    onChange={(value) =>
+                      setEditor({ ...editor, primary_colour: value })
                     }
-                  >
-                    {Object.keys(colours).map((c) => (
-                      <option key={c}>{c}</option>
-                    ))}
-                  </select>
-                </label>
+                  />
+                </div>
                 <div className="field-pair">
                   <label>
                     Pattern
@@ -1374,16 +1537,13 @@ export function App() {
                     </select>
                   </label>
                 </div>
-                <label>
-                  Fit
-                  <input
-                    maxLength={60}
+                <div className="field-choice">
+                  <span>Fit</span>
+                  <FitChoices
                     value={editor.fit}
-                    onChange={(e) =>
-                      setEditor({ ...editor, fit: e.target.value })
-                    }
+                    onChange={(value) => setEditor({ ...editor, fit: value })}
                   />
-                </label>
+                </div>
                 <details className="item-optional">
                   <summary>
                     More details <span className="optional">Optional</span>

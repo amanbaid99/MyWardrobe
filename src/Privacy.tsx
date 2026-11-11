@@ -11,9 +11,12 @@ export function Privacy() {
       </p>
       <h2>Photos and AI</h2>
       <p>
-        Photo upload and external AI processing are disabled. Description
-        capture recognises words locally on your device. No garment photos or
-        descriptions are sent to an AI provider.
+        AI text/photo capture sends your chosen input through OpenRouter to an
+        AI provider only after you consent and request analysis. Provider
+        retention policies apply; zero provider retention is not promised.
+        Photos are resized and re-encoded on your device and processed
+        transiently without being saved to Wardrobe storage. You review and
+        confirm garment details before saving.
       </p>
       <h2>Shared account, separate wardrobe</h2>
       <p>

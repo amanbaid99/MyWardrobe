@@ -1,11 +1,7 @@
 import { useEffect, useRef, useState } from "react";
+import { supabase } from "./client";
 import { categories, labels, colours, duplicates, type Item } from "./domain";
-import {
-  parseImport,
-  validateImport,
-  importTemplate,
-  type ImportRow,
-} from "./import";
+import { parseImport, validateImport, type ImportRow } from "./import";
 export function BulkImport({
   items,
   onSave,
@@ -24,26 +20,30 @@ export function BulkImport({
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
     [reading, setReading] = useState(false),
-    [fileName, setFileName] = useState("");
+    [fileName, setFileName] = useState(""),
+    [mode, setMode] = useState<"text" | "photo">("text"),
+    [description, setDescription] = useState(""),
+    [image, setImage] = useState(""),
+    [consent, setConsent] = useState(false);
   useEffect(() => {
     dialog.current?.showModal();
   }, []);
   useEffect(() => {
     const guard = (e: BeforeUnloadEvent) => {
-      if (rows.length) {
+      if (rows.length || description || image) {
         e.preventDefault();
         e.returnValue = "";
       }
     };
     window.addEventListener("beforeunload", guard);
     return () => window.removeEventListener("beforeunload", guard);
-  }, [rows.length]);
+  }, [rows.length, description, image]);
   function close() {
     if (busy || reading) return;
     if (
-      rows.some((_, i) => !saved.has(i)) &&
+      (rows.some((_, i) => !saved.has(i)) || description || image) &&
       !confirm(
-        "Discard the remaining import preview? Saved pieces will remain in your wardrobe.",
+        "Discard the remaining garment suggestions? Saved pieces will remain in your wardrobe.",
       )
     )
       return;
@@ -52,40 +52,75 @@ export function BulkImport({
   const duplicate = (row: ImportRow, index: number) =>
     duplicates([...items, ...rows.slice(0, index).map((r) => r.item)], row.item)
       .length > 0;
-  async function file(file?: File) {
+  async function photo(file?: File) {
     if (!file) return;
-    if (!/\.(csv|json)$/i.test(file.name)) {
-      setError("Choose a .csv or .json file.");
-      return;
-    }
-    if (file.size > 2 * 1024 * 1024) {
-      setError("Choose a file under 2 MB.");
+    if (
+      !["image/jpeg", "image/png", "image/webp"].includes(file.type) ||
+      file.size > 10000000
+    ) {
+      setError("Choose a JPEG, PNG or WebP photo under 10 MB.");
       return;
     }
     setReading(true);
     setError("");
     try {
+      const bitmap = await createImageBitmap(file);
+      const ratio = Math.min(1, 1600 / Math.max(bitmap.width, bitmap.height));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.round(bitmap.width * ratio);
+      canvas.height = Math.round(bitmap.height * ratio);
+      canvas
+        .getContext("2d")!
+        .drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+      bitmap.close();
+      const encoded = canvas.toDataURL("image/jpeg", 0.82);
+      if (encoded.length > 3300000)
+        throw new Error(
+          "This image is too large after resizing. Try a smaller photo.",
+        );
+      setImage(encoded);
+    } catch (e) {
+      setError((e as Error).message || "Could not read this image.");
+    } finally {
+      setReading(false);
+    }
+  }
+  async function analyse() {
+    setReading(true);
+    setError("");
+    try {
+      const { data } = await supabase.auth.getSession();
+      if (!data.session)
+        throw new Error(
+          "Sign in to use AI capture. Manual entry and sample browsing remain available.",
+        );
+      const response = await fetch("/api/capture", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${data.session.access_token}`,
+        },
+        body: JSON.stringify({
+          text: mode === "text" ? description : "",
+          image: mode === "photo" ? image : "",
+          consent,
+        }),
+        signal: AbortSignal.timeout(65000),
+      });
+      const result = await response.json();
+      if (!response.ok)
+        throw new Error(result.error || "Analysis failed. Nothing was saved.");
       const parsed = parseImport(
-        await file.text(),
-        /\.json$/i.test(file.name) ? "json" : "csv",
+        JSON.stringify({ items: result.items }),
+        "json",
       );
       setRows(parsed);
       setSaved(new Set());
       setFailures({});
-      setFileName(file.name);
-      setSelected(
-        new Set(
-          parsed.flatMap((r, i) =>
-            !r.errors.length &&
-            !duplicates(
-              [...items, ...parsed.slice(0, i).map((p) => p.item)],
-              r.item,
-            ).length
-              ? [i]
-              : [],
-          ),
-        ),
-      );
+      setFileName("AI suggestions — review required");
+      setSelected(new Set());
+      setDescription("");
+      setImage("");
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -157,11 +192,11 @@ export function BulkImport({
       <div className="modal-heading">
         <div>
           <p className="eyebrow">BRING YOUR COLLECTION WITH YOU</p>
-          <h2 id="import-title">Bulk import</h2>
+          <h2 id="import-title">Add clothes with AI</h2>
         </div>
         <button
           className="close"
-          aria-label="Close bulk import"
+          aria-label="Close garment capture"
           disabled={busy || reading}
           onClick={close}
         >
@@ -169,27 +204,96 @@ export function BulkImport({
         </button>
       </div>
       <p>
-        Upload CSV or a Wardrobe JSON export. Review garments before saving. IDs
-        and owners are ignored; this adds new pieces to your own wardrobe.
-        Preferences, ratings and outfits are not imported.
+        Describe several pieces or take a photo containing multiple garments. AI
+        proposes the details; you correct and select what to save. Nothing
+        enters your wardrobe until you confirm.
       </p>
-      <a
-        className="secondary"
-        href={`data:text/csv;charset=utf-8,${encodeURIComponent(importTemplate)}`}
-        download="wardrobe-import-template.csv"
-      >
-        Download CSV template
-      </a>
-      <label className="import-file">
-        Choose CSV or JSON (up to 500 pieces / 2 MB)
-        <input
-          type="file"
-          accept=".csv,.json,text/csv,application/json"
-          disabled={busy || reading || rows.length > 0}
-          onChange={(e) => void file(e.target.files?.[0])}
-        />
-      </label>
-      {reading && <p role="status">Reading your file…</p>}
+      {rows.length === 0 && (
+        <>
+          <div
+            className="capture-mode"
+            role="group"
+            aria-label="Capture method"
+          >
+            <button
+              className={mode === "text" ? "secondary selected" : "secondary"}
+              aria-pressed={mode === "text"}
+              disabled={reading}
+              onClick={() => setMode("text")}
+            >
+              Add by text
+            </button>
+            <button
+              className={mode === "photo" ? "secondary selected" : "secondary"}
+              aria-pressed={mode === "photo"}
+              disabled={reading}
+              onClick={() => setMode("photo")}
+            >
+              Add by photo
+            </button>
+          </div>
+          {mode === "text" ? (
+            <label>
+              Describe your clothes
+              <textarea
+                maxLength={10000}
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="I have a navy linen shirt, black straight jeans and white trainers…"
+              />
+            </label>
+          ) : (
+            <>
+              <label>
+                Take or choose a photo
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  capture="environment"
+                  disabled={reading}
+                  onChange={(e) => void photo(e.target.files?.[0])}
+                />
+              </label>
+              {image && (
+                <img
+                  className="capture-preview"
+                  src={image}
+                  alt="Temporary garment photo for analysis"
+                />
+              )}
+            </>
+          )}
+          <label className="archive-toggle consent">
+            <input
+              type="checkbox"
+              checked={consent}
+              onChange={(e) => setConsent(e.target.checked)}
+            />
+            I agree to send this text/photo through OpenRouter to an AI provider
+            for analysis. Providers may retain data under their policies.
+            Wardrobe does not save the photo.
+          </label>
+          <a
+            href="https://openrouter.ai/privacy"
+            target="_blank"
+            rel="noreferrer"
+          >
+            OpenRouter privacy policy
+          </a>
+          <button
+            className="primary"
+            disabled={
+              reading ||
+              !consent ||
+              (mode === "text" ? !description.trim() : !image)
+            }
+            onClick={analyse}
+          >
+            {reading ? "Analysing…" : "Analyse and review garments"}
+          </button>
+        </>
+      )}
+      {reading && <p role="status">Analysing your garments…</p>}
       {error && (
         <p className="alert" role="alert">
           {error}
@@ -202,8 +306,8 @@ export function BulkImport({
             {pending.length} selected
           </p>
           <p className="fine">
-            Possible duplicates start unselected. Select them explicitly if you
-            own separate matching pieces. Edits apply to this preview only.
+            All suggestions start unselected. Review their details, then select
+            what you own. Possible duplicates are flagged.
           </p>
           <div className="import-actions">
             <button
@@ -373,13 +477,12 @@ export function BulkImport({
           disabled={busy || reading || !pending.length}
           onClick={save}
         >
-          {busy ? "Importing…" : `Import ${pending.length} selected pieces`}
+          {busy ? "Saving…" : `Save ${pending.length} confirmed pieces`}
         </button>
       </div>
       <p className="fine">
-        Files are parsed locally. Only selected garment details are saved; the
-        source file is not uploaded. Keep this window open until importing
-        finishes.
+        AI can be wrong. Confirm colours and garment types before saving. Only
+        confirmed structured details are stored; source photos are discarded.
       </p>
     </dialog>
   );

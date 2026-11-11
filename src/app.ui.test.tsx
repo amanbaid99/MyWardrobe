@@ -127,46 +127,70 @@ test("edited garment needs discard confirmation and retains the draft when decli
       .value,
   ).toBe("Unsaved favourite");
 });
-test("bulk import reviews duplicates and never reimports completed rows", async () => {
+test("AI capture requires consent and explicit selection before any garment is saved", async () => {
   const { BulkImport } = await import("./BulkImport");
+  api.session.mockResolvedValue({
+    data: { session: { access_token: "test-token" } },
+    error: null,
+  });
   const save = vi
     .fn()
-    .mockImplementation(async (item) => ({ ...item, item_id: "saved-id" }));
-  const file = new File(["ignored"], "wardrobe.json", {
-    type: "application/json",
-  });
-  Object.defineProperty(file, "text", {
-    value: async () =>
-      JSON.stringify([
-        {
-          display_name: "New shirt",
-          category: "top",
-          subcategory: "shirt",
-          primary_colour: "pink",
-        },
-        { ...samples[0] },
-      ]),
-  });
+    .mockImplementation(async (item) => ({ ...item, item_id: "saved" }));
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        items: [
+          {
+            display_name: "Blue shirt",
+            category: "top",
+            subcategory: "shirt",
+            primary_colour: "blue",
+          },
+        ],
+      }),
+    }),
+  );
   render(<BulkImport items={samples} onSave={save} onClose={vi.fn()} />);
-  fireEvent.change(screen.getByLabelText(/Choose CSV or JSON/), {
-    target: { files: [file] },
-  });
-  await screen.findByText("Possible duplicate");
+  fireEvent.change(
+    screen.getByRole("textbox", { name: "Describe your clothes" }),
+    { target: { value: "a blue shirt" } },
+  );
   expect(
-    (screen.getByRole("checkbox", { name: "Select row 1" }) as HTMLInputElement)
-      .checked,
+    (
+      screen.getByRole("button", {
+        name: "Analyse and review garments",
+      }) as HTMLButtonElement
+    ).disabled,
   ).toBe(true);
-  expect(
-    (screen.getByRole("checkbox", { name: "Select row 2" }) as HTMLInputElement)
-      .checked,
-  ).toBe(false);
+  fireEvent.click(screen.getByRole("checkbox", { name: /I agree to send/ }));
   fireEvent.click(
-    screen.getByRole("button", { name: "Import 1 selected pieces" }),
+    screen.getByRole("button", { name: "Analyse and review garments" }),
+  );
+  await screen.findByDisplayValue("Blue shirt");
+  expect(save).not.toHaveBeenCalled();
+  const selected = screen.getByRole("checkbox", {
+    name: "Select row 1",
+  }) as HTMLInputElement;
+  expect(selected.checked).toBe(false);
+  fireEvent.click(selected);
+  fireEvent.click(
+    screen.getByRole("button", { name: "Save 1 confirmed pieces" }),
   );
   await screen.findByText("Saved");
   expect(save).toHaveBeenCalledTimes(1);
-  expect(
-    (screen.getByRole("checkbox", { name: "Select row 1" }) as HTMLInputElement)
-      .disabled,
-  ).toBe(true);
+  vi.unstubAllGlobals();
+});
+test("garment cards open read-only details before editing", async () => {
+  render(<App />);
+  fireEvent.click(
+    screen.getByRole("button", { name: "Explore a sample wardrobe" }),
+  );
+  await screen.findByRole("heading", { name: /My wardrobe/ });
+  fireEvent.click(screen.getByRole("button", { name: /Oxford shirt/ }));
+  expect(screen.getByRole("dialog", { name: "Oxford shirt" })).toBeTruthy();
+  expect(screen.queryByRole("textbox", { name: "Piece name" })).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Edit piece" }));
+  expect(screen.getByRole("textbox", { name: "Piece name" })).toBeTruthy();
 });

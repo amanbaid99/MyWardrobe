@@ -12,7 +12,7 @@ Mobile-first inventory with email-code sign-in, readable controls, stronger cont
 
 Outfit Studio now arranges garments on **one coordinated flat-lay canvas**: top/one-piece, bottoms, shoes and optional cold-weather layer, with clickable details. No humanoid or virtual try-on is used. Occasion rules, avoided colours, preferred colours/fit/style, known season/climate and persisted ratings influence selection. New combinations are shown before recycling the candidate pool. Server-side validation checks that referenced items are owned, active and compatible with occasion/known constraints.
 
-Text descriptions are parsed locally into editable proposals (one piece per line or semicolon, up to 20 at a time). This is a limited word-based parser, not AI extraction. Review every field before saving. Photos and external AI remain disabled.
+**Add by text / photo** analyses multiple garments through a server-side OpenRouter endpoint, then shows editable suggestions. Processing requires explicit consent; all suggestions start unselected and only confirmed details are saved. Photos are resized/re-encoded locally, processed transiently and never stored in Wardrobe. Provider retention policies apply. Manual entry remains available.
 
 Preferences include full Wardrobe-data export and a deliberately confirmed Wardrobe-only clear action. Shared finance records, sign-in identity and membership are preserved. The privacy page explains storage and scope. PWA installation is online-only; no private inventory is cached offline.
 
@@ -52,6 +52,12 @@ External AI/natural-language extraction, photo/multiple-item detection and tempo
 
 Use the same email as the finance app, choose **Email me a sign-in code**, and enter the latest emailed code in Wardrobe. Finance uses email-code/Google sign-in; a Google password is not a Supabase password. Password sign-in remains available only for accounts with a separately set Supabase password. Email-code requests never create new accounts or grant membership. Enter the code in Wardrobe rather than using an email link that may open finance. No shared Auth settings, templates, passwords or invite rules were changed for this fix.
 
-## Bulk import
+## AI capture setup
 
-In **My wardrobe → Bulk import CSV / JSON**, download the CSV template or choose a `.csv` / `.json` file (500 pieces / 2 MB maximum). Review and correct the preview, then import selected rows. Suspected duplicates start unchecked. Existing JSON exports can restore garment records as new items; preferences, ratings and outfits are not imported. Saved rows stay saved if another row fails. Files are parsed locally; only selected garment details are sent to Supabase. No photos are imported.
+The primary capture flow is text/photo → AI analysis → editable review → explicit selection/save. CSV/JSON uploads are no longer offered in this flow. Existing JSON export remains a backup feature.
+
+`OPENROUTER_API_KEY` is a server-only Production environment variable in Vercel; never place it in a VITE\_ variable. `OPENROUTER_MODEL` is optional. Without an explicit model, the endpoint discovers a currently listed free vision model. Routing requests providers that deny data collection and disables provider fallback; analysis can fail if no compatible private/free provider is available. No paid fallback is configured.
+
+Limits: 20 proposals per response; 10 MB source photo resized locally to at most 1600px and a 2.5 MB server image payload; 10 requests/hour/user, 100/day/user and 900/day/project (rolling windows). Quota metadata contains only account ID and timestamp, not photos/text. Keys and quota availability do not guarantee provider availability.
+
+The latest UI also adds read-only garment details before editing, colour/fit chips, mobile bottom navigation, selected-piece export/archive/restore actions, and a collapsible outfit rationale.

@@ -2463,3 +2463,245 @@ textarea {
     grid-template-columns: 1fr;
   }
 }
+.capture-mode {
+  display: flex;
+  gap: 12px;
+  margin: 20px 0;
+}
+.capture-preview {
+  display: block;
+  max-width: 100%;
+  max-height: 280px;
+  object-fit: contain;
+  margin: 16px auto;
+  border-radius: 8px;
+}
+.consent {
+  white-space: normal;
+  align-items: flex-start;
+  margin: 20px 0;
+  font-size: 14px;
+}
+.bulk-import > a {
+  display: inline-block;
+  margin-bottom: 18px;
+  font-size: 13px;
+}
+.bulk-import > .primary {
+  display: flex;
+  width: 100%;
+  margin: 16px 0;
+}
+.choice-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+.choice-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 44px;
+  padding: 8px 12px;
+  background: #fffefa;
+  border: 1px solid #b9c5ac;
+  border-radius: 22px;
+  font-size: 13px;
+  text-transform: capitalize;
+}
+.choice-chip.chosen {
+  background: #e0e8d6;
+  border: 2px solid #3b5730;
+  padding: 7px 11px;
+}
+.colour-chips .choice-chip span {
+  width: 18px;
+  height: 18px;
+  border: 1px solid #0003;
+  border-radius: 50%;
+}
+.field-choice > span {
+  font-size: 14px;
+  color: #4e6046;
+}
+.mobile-bottom-nav {
+  display: none;
+}
+.garment-wrapper {
+  position: relative;
+  min-width: 0;
+}
+.garment-wrapper > .garment-card {
+  width: 100%;
+}
+.piece-select {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  padding: 7px;
+  background: #fafaf6e8;
+  border-radius: 6px;
+}
+.piece-select input {
+  width: 22px;
+  height: 22px;
+  min-height: 22px;
+  accent-color: #2f493c;
+}
+.selection-tools {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 20px;
+  flex-wrap: wrap;
+}
+.bulk-action-bar {
+  position: fixed;
+  bottom: 18px;
+  left: calc(50% + 110px);
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: calc(100vw - 270px);
+  z-index: 8;
+  background: #fafaf6;
+  border: 1px solid #b6c3a7;
+  box-shadow: 0 5px 35px #1d321c33;
+  border-radius: 12px;
+  padding: 12px 18px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.garment-details {
+  max-width: 510px;
+}
+.garment-details > .close {
+  position: absolute;
+  right: 14px;
+  top: 14px;
+}
+.details-art {
+  background: #eef1e6;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  margin-bottom: 22px;
+}
+.details-art svg {
+  width: 80%;
+  height: 240px;
+}
+.garment-details h2 {
+  font-family: "Libre Caslon Display", Georgia, serif;
+  font-size: 34px;
+  font-weight: 400;
+}
+.garment-details dl {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+.garment-details dt {
+  font-size: 12px;
+  color: #63745a;
+}
+.garment-details dd {
+  margin: 0;
+  font-size: 15px;
+  text-transform: capitalize;
+}
+.outfit-explanation summary {
+  cursor: pointer;
+  min-height: 48px;
+  display: list-item;
+  font-weight: 600;
+  color: #344e29;
+}
+.outfit-explanation > p {
+  font-size: 15px;
+  line-height: 1.7;
+  color: #4e6046;
+}
+.outfit-composition {
+  grid-template-columns: minmax(0, 1.8fr) minmax(220px, 1fr);
+}
+@media (max-width: 1100px) {
+  .outfit-composition {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 760px) {
+  .sidebar nav {
+    display: none;
+  }
+  .mobile-bottom-nav {
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 7px 14px calc(7px + env(safe-area-inset-bottom));
+    background: #fafaf6f5;
+    border-top: 1px solid #d3ddc6;
+    z-index: 9;
+    justify-content: space-around;
+    backdrop-filter: blur(12px);
+  }
+  .mobile-bottom-nav button {
+    border: 0;
+    background: none;
+    min-height: 52px;
+    min-width: 75px;
+    display: flex;
+    align-items: center;
+    flex-direction: column;
+    justify-content: center;
+    gap: 4px;
+    font-size: 12px;
+    color: #647259;
+  }
+  .mobile-bottom-nav button[aria-current="page"] {
+    color: #23401d;
+    background: #e4ebdc;
+    border-radius: 8px;
+    font-weight: 600;
+  }
+  main {
+    padding-bottom: 125px;
+  }
+  .bulk-action-bar {
+    bottom: calc(85px + env(safe-area-inset-bottom));
+    left: 12px;
+    right: 12px;
+    transform: none;
+    width: auto;
+    max-width: none;
+    gap: 8px;
+    padding: 12px;
+  }
+  .bulk-action-bar b {
+    flex-basis: 100%;
+    font-size: 14px;
+  }
+  .bulk-action-bar button {
+    font-size: 12px;
+    min-height: 44px;
+  }
+  .garment-details {
+    width: 100%;
+    max-width: none;
+    max-height: 90dvh;
+    margin: auto 0 0;
+    border-radius: 18px 18px 0 0;
+    box-sizing: border-box;
+  }
+  .garment-details .modal-footer {
+    bottom: -20px;
+  }
+  .garment-details .details-art svg {
+    height: 190px;
+  }
+}

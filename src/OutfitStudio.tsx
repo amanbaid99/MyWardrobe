@@ -95,7 +95,7 @@ export function OutfitStudio({
       <button
         className={`outfit-piece slot-${slot}`}
         onClick={() => onEdit(item)}
-        title={`Edit ${item.display_name}`}
+        title={`View ${item.display_name}`}
       >
         <Garment item={item} />
         <span>{item.display_name}</span>
@@ -199,35 +199,37 @@ export function OutfitStudio({
               </span>
             </div>
             <aside className="look-notes">
-              <p className="eyebrow">WHY THIS WORKS</p>
-              <p>{look.rationale}</p>
-              {look.missing.length > 0 && (
-                <div className="missing">
-                  <b>Still needed</b>
-                  <ul>
-                    {look.missing.map((m) => (
-                      <li key={m}>{m}</li>
-                    ))}
-                  </ul>
-                  <p>
-                    These pieces are not owned or are unsuitable for the
-                    selected constraints.
+              <details className="outfit-explanation">
+                <summary>Why this look</summary>
+                <p>{look.rationale}</p>
+                {look.missing.length > 0 && (
+                  <div className="missing">
+                    <b>Still needed</b>
+                    <ul>
+                      {look.missing.map((m) => (
+                        <li key={m}>{m}</li>
+                      ))}
+                    </ul>
+                    <p>
+                      These pieces are not owned or are unsuitable for the
+                      selected constraints.
+                    </p>
+                  </div>
+                )}
+                {look.warnings.map((w) => (
+                  <p className="fine" key={w}>
+                    <Icon name="info" /> {w}
                   </p>
-                </div>
-              )}
-              {look.warnings.map((w) => (
-                <p className="fine" key={w}>
-                  <Icon name="info" /> {w}
+                ))}
+                <p className="fine">
+                  {look.totalCandidates} suitable{" "}
+                  {look.totalCandidates === 1 ? "combination" : "combinations"}{" "}
+                  available.
+                  {look.exhausted
+                    ? " You’ve seen them all; starting a new cycle."
+                    : ""}
                 </p>
-              ))}
-              <p className="fine">
-                {look.totalCandidates} suitable{" "}
-                {look.totalCandidates === 1 ? "combination" : "combinations"}{" "}
-                available.
-                {look.exhausted
-                  ? " You’ve seen them all; starting a new cycle."
-                  : ""}
-              </p>
+              </details>
               {recordId && (
                 <div className="outfit-feedback">
                   <h3>Would you wear this?</h3>

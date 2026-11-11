@@ -17,7 +17,11 @@ test("Wardrobe migration and RLS enforce ownership, membership and CRUD", async 
     for (const name of (
       await readdir(new URL("../supabase/migrations/", import.meta.url))
     )
-      .filter((n) => n.includes("wardrobe_usability_and_feedback"))
+      .filter(
+        (n) =>
+          n.includes("wardrobe_usability_and_feedback") ||
+          n.includes("wardrobe_capture_quota"),
+      )
       .sort())
       await db.exec(
         await readFile(
@@ -33,6 +37,12 @@ test("Wardrobe migration and RLS enforce ownership, membership and CRUD", async 
     );
     await db.exec(
       `insert into wardrobe.memberships(user_id) values('${alice}'),('${bob}'); set role authenticated; set request.jwt.claim.sub='${alice}';`,
+    );
+    for (let n = 0; n < 10; n++)
+      await db.query("select public.wardrobe_reserve_capture()");
+    await assert.rejects(
+      db.query("select public.wardrobe_reserve_capture()"),
+      /limit/i,
     );
     const item = {
       display_name: "Test shirt",
