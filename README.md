@@ -10,13 +10,19 @@ Node 24 recommended. `npm ci`, then `npm run dev`. `npm run build` checks TypeSc
 
 Foundation UI: shared email/password login, invited signup, password reset/update, inventory CRUD/archive/search/filter/export, duplicate warnings, deterministic garment vectors, preferences, initial rule-based outfit combinations, sample preview mode and install manifest. No AI requests or photo uploads occur.
 
-**Database integration is implemented but the production migration is NOT applied.** Automatic approval review rejected the initial migration because it enrolled all existing Auth users and modified the shared production database. The revised migration removes automatic enrollment. Do not retry or work around the rejection without explicit approval for the revised change. Real login uses tracker Auth, but wardrobe data will not load until the migration and explicit access enrollment are approved and applied.
+**Database foundation is applied and verified.** The user explicitly approved the revised Wardrobe-only migration and selected their existing tracker account for access. Exactly that account was enrolled. See the handoff for the approval history and verification limits.
+
+Private app: https://wardrobe-studio-aman.biggerglade1.chatgpt.site
+
+Source branch: https://github.com/amanbaid99/MyWardrobe/tree/wardrobe-foundation
+
+Sign in using the approved existing tracker account. “Explore a sample wardrobe” is separate, in-memory preview data.
 
 ## Database boundary
 
 Project: `sbkpirchaaljlwzgntrf` (`tracker`). Tables live in `wardrobe`; four `public.wardrobe_*` SECURITY INVOKER RPC functions expose only Wardrobe operations and preserve RLS. Do not expose the entire schema or change existing tracker/Auth objects. Memberships are administered separately; clients cannot grant membership. Signup remains subject to tracker's existing invite trigger. Wardrobe deletion must never delete a shared Auth account or tracker records.
 
-Review `supabase/migrations/*_wardrobe_foundation.sql`. `docs/schema.sql` is a human-readable copy and must stay identical. Do not apply both. Existing database and Auth settings must be preserved.
+Applied migration: `supabase/migrations/20261111111732_wardrobe_foundation.sql`. `docs/schema.sql` is a human-readable copy and must stay identical. Do not apply both. Existing database and Auth settings must be preserved.
 
 ## Project map
 

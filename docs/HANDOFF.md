@@ -14,7 +14,7 @@ React 19 / TypeScript / Vite static PWA. Existing tracker Supabase project `sbkp
 
 Dedicated `wardrobe` schema with memberships/items/preferences and owner + membership RLS. Access via four SECURITY INVOKER public RPC functions, avoiding changes to Data API exposed schemas. No SECURITY DEFINER functions, Auth trigger changes, or finance-table changes. Clients have no membership-write grant. Memberships must be explicitly administered. Do not delete shared Auth users as part of Wardrobe deletion.
 
-Sites private hosting selected for the first working preview. Site ID `appgprj_6af44b6fcdac8191af566132c8a4433e`; expected origin `https://wardrobe-studio-aman.biggerglade1.chatgpt.site` is not proof of deployment. Read `.openai/hosting.json` and current tool state; do not create another Site. Source helper scripts were not installed in this executor; preserve GitHub origin, use separate Sites remote and explicit artifact packaging if necessary. Credentials must only travel through hidden stdin / memory; never persist them.
+Sites private hosting selected for the first working preview. Site ID `appgprj_6af44b6fcdac8191af566132c8a4433e`; expected origin `https://wardrobe-studio-aman.biggerglade1.chatgpt.site` is not proof of deployment. Read `.openai/hosting.json` and current tool state; do not create another Site. The private deployment is confirmed live at the expected origin above. Source helper scripts were not installed in this executor; preserve GitHub origin, use separate Sites remote and explicit artifact packaging if necessary. Credentials must only travel through hidden stdin / memory; never persist them.
 
 ## Completed source
 
@@ -28,13 +28,19 @@ Sites private hosting selected for the first working preview. Site ID `appgprj_6
 - Install manifest and online-first service worker that does not cache account data.
 - Additive SQL migration with scoped grants and RLS.
 
-## Blocking approval — important
+## Approval history and current database status
 
-Automatic approval review rejected the first production apply attempt: bulk inserting all Auth users into Wardrobe memberships and modifying shared database permissions/schema were considered beyond confirmed authorization. **No migration was applied.** Revised SQL removes all automatic enrollment. Do not bypass the rejection via another tool, SQL Editor, different statement order or indirect mechanism. Obtain explicit user approval to apply the revised Wardrobe-only schema/functions/grants to tracker, then separately establish which identity gets membership. Real wardrobe persistence remains blocked until then. Continue local implementation and validation meanwhile.
+Automatic review initially rejected the migration because it bulk-enrolled all Auth users and changed production schema permissions. No changes occurred from that attempt. We removed all automatic enrollment and presented the exact revised SQL to the user. The user explicitly answered **“Approve the revised migration”** on 11 November 2026. The revised migration was then applied successfully via Supabase apply_migration as `20261111111732_wardrobe_foundation`.
+
+The user then explicitly selected their existing tracker email for access. Exactly one matching existing identity was enrolled; no other memberships were created. Do not bulk-enroll users. For privacy, this handoff does not duplicate the email or Auth UUID; authorized administrators can inspect memberships when needed.
+
+Production verification: all three Wardrobe tables have RLS and policies; all four RPC functions are SECURITY INVOKER, executable by authenticated users and not anonymous users. Non-member smoke test returned access=false and no items/preferences. A live test under the approved member's authenticated database role successfully created, archived, and deleted a test piece in a transaction that was rolled back. No test wardrobe data remains. This verifies database functions, not browser → HTTP API → database end to end.
+
+Security advisors reported no findings on the new Wardrobe objects. Existing tracker findings (privileged invite/account helper functions, RLS-only admin tables, leaked-password-protection setting) were recorded but not changed. Do not alter existing tracker security configuration without appropriate scope and review.
 
 ## Remaining implementation
 
-1. Apply approved migration and explicitly enroll approved identities. Verify actual API roundtrip and separate-account isolation before calling real persistence verified.
+1. Migration and selected-account enrollment are complete. Verify an actual signed-in browser/API roundtrip and separate-account isolation before claiming full end-to-end verification.
 2. Add final private deployment URL to Supabase redirect allowlist without replacing tracker URLs/Site URL; verify email flows. Existing invite-list and profile creation triggers remain in place.
 3. Natural-language capture with review; no CSV v1.
 4. Server-side OpenRouter integration, authenticated requests, input validation, timeouts, bounded retries, quotas and model capability checks. The stated 1,000/day allowance may be shared with other apps and is not verified; do not hardcode it as guaranteed capacity.
@@ -57,17 +63,23 @@ Read current git status and this file; inspect deployment state for the recorded
 - All seven tests pass: six domain tests and one isolated PostgreSQL/PGlite integration test covering creation/edit/archive/delete, preferences, owner spoof rejection, cross-user isolation, denied owner reassignment, denied self-enrollment, non-member rejection and anonymous RPC rejection.
 - Revised migration enrolls nobody automatically; both SQL copies match.
 - Managed preview relay failed twice with `timed out waiting for relay readiness` on port 4173. Browser QA cannot be claimed from that path; do not launch an alternate preview server to bypass infrastructure.
-- Live database migration, API persistence, email redirect flows and device installation remain unverified.
+- Live database migration and transactional database CRUD are now verified. Browser/API persistence, email redirect flows and device installation remain unverified.
 - PWA PNG icons generated locally from the app mark; service worker does not cache sensitive data or provide offline browsing.
 
 ## Publication record
 
-Foundation app source commit: `44bd91d8a2042053011c60c56035342cf0aff114`. Pushed to GitHub branch `wardrobe-foundation` and Sites branch `main`. Private deployment requested for that exact commit:
+Foundation app source commit: `44bd91d8a2042053011c60c56035342cf0aff114`. Pushed to GitHub branch `wardrobe-foundation` and Sites branch `main`. Private deployment for that exact commit **succeeded**:
 
+- URL: https://wardrobe-studio-aman.biggerglade1.chatgpt.site
 - Deployment: `appgdep_6af44e257ba081918eb7c293865c40ad`
 - Saved version: `appgprj_6af44b6fcdac8191af566132c8a4433e~appgver_9a56655e0ed481919d4546ce54285d43`
-- Last observed state at 11:16 UTC: pending, no URL. Reconcile this deployment before retrying publication; do not create duplicate versions or Sites.
-- Direct browser startup also failed with `Browser Use could not read requirements`. Browser QA remains unavailable. Production logs returned `worker_logs_unavailable` while deployment was pending.
-- Explicit approval question for revised migration was sent to user. No answer received at this documentation checkpoint. Do not treat elapsed time as approval.
+- Native deployment result verified success. No duplicate publication is needed.
+- Browser startup failed with `Browser Use could not read requirements`; browser QA remains unavailable. Preview relay also failed twice.
+- Documentation-only commits after the app commit record final deployment/database status on GitHub; they do not change the deployed app bundle. Latest source/handoff is on the GitHub branch.
 
-This publication-status documentation can be committed to GitHub separately from the deployed app commit. Do not claim the documentation commit itself was deployed unless a matching deployment is completed.
+## Immediate next session
+
+1. Open the private app and sign in with the already-enrolled existing tracker account. Check saving/reloading one real garment, editing, archive, export and mobile layout. Do not create synthetic users in shared Auth or ask for the user's password.
+2. Configure additional Auth redirect origins only if needed, preserving tracker settings. Signup/reset email flows are not verified.
+3. Implement reviewed plain-text capture, then server-side AI integration with secure secret setup. Photo consent and provider-retention review remain outstanding.
+4. Keep this handoff and README current. Migration is applied: never execute the foundation SQL again on tracker. Local migration filename was aligned to the server-assigned migration version after application.
