@@ -9,3 +9,5 @@ The shared Supabase tracker database is production. The revised Wardrobe-only mi
 Run npm run build and npm test after meaningful behavior changes. SQL is covered by an isolated PostgreSQL/PGlite test, not a production test. Distinguish sample-mode UI verification from authenticated end-to-end verification. Never claim AI/photo capture, personalised ranking, or cloud persistence works until actually implemented and verified.
 
 Keep the Sites project ID in .openai/hosting.json; do not create another Site. Preserve GitHub origin. Site publication stays private. Credentials for source pushes must remain in memory/stdin, never disk or shell arguments.
+
+Production now runs on Vercel project `prj_VluP5OBKeh9uiLAJx9dqsNOAB39C` in `aman-projects8`. The user explicitly approved production access through Supabase app login, with Vercel protection on previews only. Stable URL: https://my-wardrobe-wine.vercel.app. Git pushes to `wardrobe-foundation` automatically deploy production. Keep the separate Sites publication private. Read docs/DEPLOYMENT.md before releases; use this existing project and preserve account isolation.

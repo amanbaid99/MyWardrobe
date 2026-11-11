@@ -34,10 +34,16 @@ After deployment, inspect its READY state, aliases and build logs. Check the HTM
 - Authenticated HTTP checks verified HTML, JS bundle, manifest and service worker return 200. These requests used Vercel's authenticated fetch, so they do not establish anonymous accessibility or signed-in browser operation.
 - Existing private Sites publication is preserved.
 
-## Access decision pending
+## Production access — approved and applied
 
-Vercel's inherited `ssoProtection.deploymentType` remains `all_except_custom_domains`. Automatic approval review rejected changing this to `preview`: removing protection from production URLs needs explicit user approval beyond deploying. Do not change protection, create alternate unprotected URLs or work around the rejection. The proposed final change is to allow production visitors to reach the app without Vercel login while keeping previews protected; Supabase login, memberships and RLS remain required for account data. Ask the owner for this precise approval. No protection settings changed from the rejected attempt.
+The owner explicitly answered **“Approve production access”** on 11 November 2026 after automatic review rejected the initial protection change. The approved change was applied successfully and verified by a fresh project read: `ssoProtection.deploymentType=preview`. Production visitors do not need Vercel login; previews remain protected. Supabase authentication, explicit Wardrobe membership and row-level security are unchanged. The private Sites deployment is unchanged.
+
+Git integration is confirmed linked to `amanbaid99/MyWardrobe`. Pushing the repository's default/production branch `wardrobe-foundation` automatically builds and deploys production. Documentation-only follow-up pushes can create new deployment IDs while serving the same application bundle. Do not create a second Vercel project or manually redeploy each documentation update.
+
+Latest verified Git-triggered deployment before this final documentation update: `dpl_21K4ibnndZGPywc7Fg5FJSrC7sSe`, READY, production. The stable URL remains https://my-wardrobe-wine.vercel.app.
 
 ## Verification limits
 
 Build and all seven tests passed before deployment. No browser login/CRUD or device install flow is verified. Production signup confirmation and password-recovery redirects still need the exact production URL added to Supabase's existing redirect allowlist, preserving tracker settings. Normal email/password login does not use that callback setting.
+
+Unauthenticated HTTP verification from this executor was blocked by the environment proxy (`CONNECT tunnel failed, response 403`, server `envoy`), not an application response. Browser startup also failed with `Browser Use could not read requirements`. Authenticated connector HTTP checks passed; public production access is established by the approved Vercel configuration, not by a successful anonymous browser test.
