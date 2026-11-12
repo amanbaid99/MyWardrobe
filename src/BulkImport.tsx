@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import { captureBatches } from "./captureText";
+import { canonicalSubtype, mergeItem } from "./domain";
 import { supabase } from "./client";
 import { categories, labels, colours, duplicates, type Item } from "./domain";
 import { parseImport, validateImport, type ImportRow } from "./import";
@@ -24,7 +26,10 @@ export function BulkImport({
     [mode, setMode] = useState<"text" | "photo">("text"),
     [description, setDescription] = useState(""),
     [image, setImage] = useState(""),
-    [consent, setConsent] = useState(false);
+    [consent, setConsent] = useState(false),
+    [analysisProgress, setAnalysisProgress] = useState(""),
+    [coverageWarnings, setCoverageWarnings] = useState<string[]>([]),
+    [mergeTargets, setMergeTargets] = useState<Record<number, string>>({});
   useEffect(() => {
     dialog.current?.showModal();
   }, []);
@@ -94,32 +99,66 @@ export function BulkImport({
         throw new Error(
           "Sign in to use AI capture. Manual entry and sample browsing remain available.",
         );
-      const response = await fetch("/api/capture", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${data.session.access_token}`,
-        },
-        body: JSON.stringify({
-          text: mode === "text" ? description : "",
-          image: mode === "photo" ? image : "",
-          consent,
-        }),
-        signal: AbortSignal.timeout(65000),
-      });
-      const result = await response.json();
-      if (!response.ok)
-        throw new Error(result.error || "Analysis failed. Nothing was saved.");
-      const parsed = parseImport(
-        JSON.stringify({ items: result.items }),
-        "json",
-      );
+      const batches = mode === "text" ? captureBatches(description) : [""];
+      const parsed: ImportRow[] = [];
+      const warnings: string[] = [];
+      for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
+        const batch = batches[batchIndex];
+        setAnalysisProgress(
+          `Analysing batch ${batchIndex + 1} of ${batches.length}…`,
+        );
+        try {
+          const response = await fetch("/api/capture", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${data.session.access_token}`,
+            },
+            body: JSON.stringify({
+              text: batch,
+              image: mode === "photo" ? image : "",
+              consent,
+            }),
+            signal: AbortSignal.timeout(65000),
+          });
+          const result = await response.json();
+          if (!response.ok)
+            throw new Error(
+              result.error || "Analysis failed. Nothing was saved.",
+            );
+          const parsedBatch = parseImport(
+            JSON.stringify({ items: result.items }),
+            "json",
+          );
+          parsed.push(
+            ...parsedBatch.map((r) => ({
+              ...r,
+              line: parsed.length + r.line,
+              item: {
+                ...r.item,
+                subcategory: canonicalSubtype(r.item.subcategory),
+              },
+            })),
+          );
+          for (const issue of result.unresolved_lines || [])
+            warnings.push(
+              `Batch ${batchIndex + 1}, source line ${issue.line}: ${issue.reason}`,
+            );
+        } catch (e) {
+          warnings.push(`Batch ${batchIndex + 1}: ${(e as Error).message}`);
+          break;
+        }
+      }
+      setCoverageWarnings(warnings);
+      setMergeTargets({});
+      if (!parsed.length)
+        throw new Error(warnings.join(" ") || "No garments found.");
       setRows(parsed);
       setSaved(new Set());
       setFailures({});
       setFileName("AI suggestions — review required");
       setSelected(new Set());
-      setDescription("");
+      // Keep the original text in memory so unresolved source lines are recoverable.
       setImage("");
     } catch (e) {
       setError((e as Error).message);
@@ -156,7 +195,16 @@ export function BulkImport({
       )
         continue;
       try {
-        await onSave({ ...rows[index].item, item_id: "" });
+        const target = items.find((i) => i.item_id === mergeTargets[index]);
+        if (mergeTargets[index] && !target)
+          throw new Error(
+            "The chosen merge target is no longer available. Reload and review this suggestion again.",
+          );
+        await onSave(
+          target
+            ? mergeItem(target, rows[index].item)
+            : { ...rows[index].item, item_id: "" },
+        );
         done.add(index);
         setSaved(new Set(done));
       } catch (e) {
@@ -293,11 +341,31 @@ export function BulkImport({
           </button>
         </>
       )}
-      {reading && <p role="status">Analysing your garments…</p>}
+      {reading && (
+        <p role="status">{analysisProgress || "Analysing your garments…"}</p>
+      )}
       {error && (
         <p className="alert" role="alert">
           {error}
         </p>
+      )}
+      {coverageWarnings.length > 0 && (
+        <div role="alert" className="alert">
+          <div>
+            <b>
+              Some source lines need attention. This is not a complete import.
+            </b>
+            <ul>
+              {coverageWarnings.map((w, i) => (
+                <li key={i}>{w}</li>
+              ))}
+            </ul>
+            <details>
+              <summary>Your original description</summary>
+              <pre className="source-description">{description}</pre>
+            </details>
+          </div>
+        </div>
       )}
       {rows.length > 0 && (
         <>
@@ -368,7 +436,76 @@ export function BulkImport({
                           : "New piece"}
                     </span>
                   </div>
+                  {duplicates(items, r.item).length > 0 && (
+                    <label>
+                      Possible duplicate — choose what to do
+                      <select
+                        value={
+                          mergeTargets[i] ||
+                          (selected.has(i) ? "separate" : "skip")
+                        }
+                        disabled={busy || saved.has(i)}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          setMergeTargets((p) => ({
+                            ...p,
+                            [i]:
+                              value === "skip" || value === "separate"
+                                ? ""
+                                : value,
+                          }));
+                          setSelected((p) => {
+                            const n = new Set(p);
+                            value === "skip" ? n.delete(i) : n.add(i);
+                            return n;
+                          });
+                        }}
+                      >
+                        <option value="skip">Skip this suggestion</option>
+                        <option value="separate">
+                          Keep as a separate item
+                        </option>
+                        {duplicates(items, r.item).map((t) => (
+                          <option key={t.item_id} value={t.item_id}>
+                            Merge into {t.display_name}
+                          </option>
+                        ))}
+                      </select>
+                      {mergeTargets[i] && (
+                        <p className="fine">
+                          Merge keeps the saved name, quantity and known
+                          attributes; it fills unknown details and combines
+                          notes. No existing record is deleted.
+                        </p>
+                      )}
+                    </label>
+                  )}
                   <fieldset disabled={busy || saved.has(i)}>
+                    <label>
+                      Quantity / pairs
+                      <input
+                        type="number"
+                        min="1"
+                        max="10000"
+                        value={r.item.quantity || 1}
+                        onChange={(e) =>
+                          setRows((p) =>
+                            p.map((row, index) =>
+                              index === i
+                                ? {
+                                    ...row,
+                                    item: {
+                                      ...row.item,
+                                      quantity: Number(e.target.value),
+                                    },
+                                    errors: [],
+                                  }
+                                : row,
+                            ),
+                          )
+                        }
+                      />
+                    </label>
                     <div className="import-fields">
                       <label>
                         Name
@@ -425,6 +562,10 @@ export function BulkImport({
                       <summary>More attributes & validation details</summary>
                       {(
                         [
+                          "usage_group",
+                          "sleeve_length",
+                          "condition",
+                          "material",
                           "pattern",
                           "fit",
                           "formality",

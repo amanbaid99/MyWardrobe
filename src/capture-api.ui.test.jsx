@@ -113,15 +113,13 @@ test("an invalid provider key produces an actionable error without exposing prov
   mocks.rpc.mockResolvedValue({ error: null });
   vi.stubGlobal(
     "fetch",
-    vi
-      .fn()
-      .mockResolvedValue({
-        ok: false,
-        status: 401,
-        json: async () => ({
-          error: { message: "sensitive upstream details" },
-        }),
+    vi.fn().mockResolvedValue({
+      ok: false,
+      status: 401,
+      json: async () => ({
+        error: { message: "sensitive upstream details" },
       }),
+    }),
   );
   const r = response();
   await handler(
@@ -174,4 +172,41 @@ test("a failing free model falls back once without relaxing privacy", async () =
   expect(
     JSON.parse(network.mock.calls[2][1].body).provider.data_collection,
   ).toBe("deny");
+});
+
+test("missing numbered source lines are reported instead of silently claiming completeness", async () => {
+  vi.stubEnv("OPENROUTER_API_KEY", "test");
+  vi.stubEnv("OPENROUTER_MODEL", "example/test:free");
+  mocks.getUser.mockResolvedValue({ data: { user: { id: "user" } } });
+  mocks.rpc.mockResolvedValue({ error: null });
+  vi.stubGlobal(
+    "fetch",
+    vi
+      .fn()
+      .mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          choices: [
+            {
+              finish_reason: "stop",
+              message: {
+                content: JSON.stringify({
+                  items: [{ source_line: 1, display_name: "shirt" }],
+                }),
+              },
+            },
+          ],
+        }),
+      }),
+  );
+  const r = response();
+  await handler(
+    {
+      method: "POST",
+      headers: { authorization: "Bearer token" },
+      body: { text: "1. Shirt\n2. Socks", consent: true },
+    },
+    r,
+  );
+  expect(r.json.mock.calls[0][0].unresolved_lines[0].line).toBe(2);
 });

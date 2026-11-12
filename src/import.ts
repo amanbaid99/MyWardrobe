@@ -33,6 +33,9 @@ export function csvRows(text: string): string[][] {
   return rows;
 }
 const fields = [
+  "usage_group",
+  "sleeve_length",
+  "condition",
   "display_name",
   "category",
   "subcategory",
@@ -49,6 +52,15 @@ const fields = [
 ] as const;
 export function validateImport(item: Item) {
   const errors: string[] = [];
+  if (
+    !Number.isInteger(item.quantity ?? 1) ||
+    (item.quantity ?? 1) < 1 ||
+    (item.quantity ?? 1) > 10000
+  )
+    errors.push("Quantity must be 1–10000");
+  for (const key of ["usage_group", "sleeve_length", "condition"] as const)
+    if ((item[key] || "").length > 60)
+      errors.push(`${key} must be under 60 characters`);
   if (!item.display_name.trim() || item.display_name.length > 100)
     errors.push("Name must contain 1–100 characters");
   if (!(categories as readonly string[]).includes(item.category))
@@ -133,6 +145,8 @@ export function parseImport(text: string, format: "csv" | "json"): ImportRow[] {
           ? value.trim()
           : value.trim().toLowerCase();
       }
+    if (record && typeof record === "object" && "quantity" in record)
+      item.quantity = Number((record as Record<string, unknown>).quantity);
     if (!record || !(record as Record<string, unknown>).category)
       item.category = "" as Item["category"];
     if (item.primary_colour === "gray") item.primary_colour = "grey";

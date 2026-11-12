@@ -56,3 +56,27 @@ test("malformed CSV, duplicate headers and oversized batches are rejected", () =
     /500/,
   );
 });
+
+test("perfume and grouped accessory quantities survive review parsing", () => {
+  const rows = parseImport(
+    JSON.stringify([
+      {
+        display_name: "Daily socks, seven pairs",
+        category: "accessory",
+        subcategory: "socks",
+        quantity: 7,
+        usage_group: "everyday",
+      },
+      {
+        display_name: "Evening scent",
+        category: "fragrance",
+        subcategory: "perfume",
+        quantity: 1,
+      },
+    ]),
+    "json",
+  );
+  assert.equal(rows[0].item.quantity, 7);
+  assert.equal(rows[0].item.usage_group, "everyday");
+  assert.equal(rows[1].errors.length, 0);
+});

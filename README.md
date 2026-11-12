@@ -61,3 +61,9 @@ The primary capture flow is text/photo → AI analysis → editable review → e
 Limits: 20 proposals per response; 10 MB source photo resized locally to at most 1600px and a 2.5 MB server image payload; 10 requests/hour/user, 100/day/user and 900/day/project (rolling windows). Quota metadata contains only account ID and timestamp, not photos/text. Keys and quota availability do not guarantee provider availability.
 
 The latest UI also adds read-only garment details before editing, colour/fit chips, mobile bottom navigation, selected-piece export/archive/restore actions, and a collapsible outfit rationale.
+
+## Large wardrobes, accessories and duplicates
+
+Text capture splits long lists into batches of eight source lines and retains section context. Each batch identifies its source lines; missing lines are displayed as unresolved, with the original description retained for follow-up. Grouped colours are requested as separate garments; repeated identical pieces and sock pairs use quantity. Brands/materials explicitly supplied in text should be preserved, while photo-based brand/material guesses remain prohibited. Users still confirm proposals; model completeness and attribute accuracy are not guaranteed.
+
+Inventory now supports Perfumes as a separate category and accessory types including socks, underwear, handkerchiefs, belts, slippers and clogs. Quantity, use group, condition and sleeve length are editable. Capture and manual-entry duplicate review offer Skip, Keep separate or a reviewed merge. Merge keeps the saved name, quantity and known details, fills unknown attributes and combines notes; it does not delete another record or automatically add quantities.

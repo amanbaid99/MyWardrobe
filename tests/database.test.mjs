@@ -20,7 +20,8 @@ test("Wardrobe migration and RLS enforce ownership, membership and CRUD", async 
       .filter(
         (n) =>
           n.includes("wardrobe_usability_and_feedback") ||
-          n.includes("wardrobe_capture_quota"),
+          n.includes("wardrobe_capture_quota") ||
+          n.includes("wardrobe_quantities_and_fragrance"),
       )
       .sort())
       await db.exec(
@@ -66,6 +67,24 @@ test("Wardrobe migration and RLS enforce ownership, membership and CRUD", async 
       alice,
       "client-supplied owner is ignored",
     );
+    const fragrance = (
+      await db.query("select public.wardrobe_save_item($1) as item", [
+        JSON.stringify({
+          ...item,
+          display_name: "Test perfume",
+          category: "fragrance",
+          subcategory: "perfume",
+          quantity: 2,
+          usage_group: "out",
+          primary_colour: "gold",
+        }),
+      ])
+    ).rows[0].item;
+    assert.equal(fragrance.quantity, 2);
+    assert.equal(fragrance.category, "fragrance");
+    await db.query("select public.wardrobe_delete_item($1)", [
+      fragrance.item_id,
+    ]);
     const boot = async () =>
       (await db.query("select public.wardrobe_bootstrap() as data")).rows[0]
         .data;

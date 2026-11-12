@@ -2705,3 +2705,18 @@ textarea {
     height: 190px;
   }
 }
+.source-description {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: inherit;
+  font-size: 13px;
+  max-height: 220px;
+  overflow: auto;
+}
+.import-list > li > label {
+  margin-bottom: 16px;
+}
+.import-list fieldset > label {
+  max-width: 180px;
+  margin-bottom: 12px;
+}

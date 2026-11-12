@@ -18,6 +18,7 @@ import { Icon } from "./Icon";
 import { OutfitStudio } from "./OutfitStudio";
 import { Privacy } from "./Privacy";
 import {
+  mergeItem,
   blankItem,
   emptyPreferences,
   subtypes,
@@ -315,8 +316,8 @@ export function App() {
     if (demo)
       saved = {
         ...item,
-        item_id: crypto.randomUUID(),
-        created_at: new Date().toISOString(),
+        item_id: item.item_id || crypto.randomUUID(),
+        created_at: item.created_at || new Date().toISOString(),
       };
     else {
       const { data, error } = await supabase.rpc("wardrobe_save_item", {
@@ -1124,7 +1125,12 @@ export function App() {
                               <Garment item={item} />
                             </div>
                             <div className="card-info">
-                              <h2>{item.display_name}</h2>
+                              <h2>
+                                {item.display_name}
+                                {(item.quantity || 1) > 1
+                                  ? ` ×${item.quantity}`
+                                  : ""}
+                              </h2>
                               <p>
                                 <span
                                   className="swatch"
@@ -1467,6 +1473,7 @@ export function App() {
                               shoes: "sneakers",
                               outerwear: "jacket",
                               accessory: "belt",
+                              fragrance: "perfume",
                             }[e.target.value] || "other",
                         })
                       }
@@ -1498,6 +1505,63 @@ export function App() {
                     </select>
                   </label>
                 </div>
+                <label>
+                  Quantity / pairs
+                  <input
+                    type="number"
+                    min="1"
+                    max="10000"
+                    value={editor.quantity || 1}
+                    onChange={(e) =>
+                      setEditor({ ...editor, quantity: Number(e.target.value) })
+                    }
+                  />
+                </label>
+                <div className="field-pair">
+                  <label>
+                    Use
+                    <select
+                      value={editor.usage_group || "unknown"}
+                      onChange={(e) =>
+                        setEditor({ ...editor, usage_group: e.target.value })
+                      }
+                    >
+                      {["unknown", "out", "everyday", "home", "gym"].map(
+                        (v) => (
+                          <option key={v}>{v}</option>
+                        ),
+                      )}
+                    </select>
+                  </label>
+                  <label>
+                    Condition
+                    <select
+                      value={editor.condition || "unknown"}
+                      onChange={(e) =>
+                        setEditor({ ...editor, condition: e.target.value })
+                      }
+                    >
+                      {["unknown", "new", "good", "worn", "stained"].map(
+                        (v) => (
+                          <option key={v}>{v}</option>
+                        ),
+                      )}
+                    </select>
+                  </label>
+                </div>
+                <label>
+                  Sleeve length
+                  <select
+                    value={editor.sleeve_length || "unknown"}
+                    onChange={(e) =>
+                      setEditor({ ...editor, sleeve_length: e.target.value })
+                    }
+                  >
+                    {["unknown", "full", "half", "sleeveless"].map((v) => (
+                      <option key={v}>{v}</option>
+                    ))}
+                  </select>
+                </label>
                 <div className="field-choice">
                   <span>Primary colour</span>
                   <ColourChoices
@@ -1632,10 +1696,31 @@ export function App() {
               </div>
             </div>
             {dup.length > 0 && (
-              <p className="missing">
-                Looks similar to {dup.map((i) => i.display_name).join(", ")}.
-                You can still save it.
-              </p>
+              <div className="missing">
+                <p>
+                  Possible matching pieces:{" "}
+                  {dup.map((i) => i.display_name).join(", ")}. Keep a separate
+                  item, or review a merge before saving.
+                </p>
+                {!editor.item_id &&
+                  dup.map((target) => (
+                    <button
+                      type="button"
+                      className="secondary"
+                      disabled={busy}
+                      key={target.item_id}
+                      onClick={() =>
+                        openEditor(mergeItem(target, editor), candidateKey)
+                      }
+                    >
+                      Review merge with {target.display_name}
+                    </button>
+                  ))}
+                <p className="fine">
+                  Merging keeps the saved name, quantity and known details, and
+                  fills unknown fields. It does not delete an existing record.
+                </p>
+              </div>
             )}
             {error && (
               <p className="alert" role="alert">
@@ -1686,7 +1771,11 @@ export function App() {
                 Cancel
               </button>
               <button className="primary" disabled={busy}>
-                {busy ? "Saving…" : "Save piece ↗"}
+                {busy
+                  ? "Saving…"
+                  : !editor.item_id && dup.length
+                    ? "Save as separate piece"
+                    : "Save piece ↗"}
               </button>
             </div>
             <p className="fine">

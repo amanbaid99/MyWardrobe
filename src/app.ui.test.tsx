@@ -194,3 +194,45 @@ test("garment cards open read-only details before editing", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Edit piece" }));
   expect(screen.getByRole("textbox", { name: "Piece name" })).toBeTruthy();
 });
+
+test("capture can explicitly merge a duplicate without creating a new record", async () => {
+  const { BulkImport } = await import("./BulkImport");
+  api.session.mockResolvedValue({
+    data: { session: { access_token: "test-token" } },
+    error: null,
+  });
+  vi.stubGlobal(
+    "fetch",
+    vi
+      .fn()
+      .mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          items: [{ ...samples[0], item_id: undefined, material: "cotton" }],
+        }),
+      }),
+  );
+  const save = vi.fn().mockResolvedValue(samples[0]);
+  render(<BulkImport items={samples} onSave={save} onClose={vi.fn()} />);
+  fireEvent.change(
+    screen.getByRole("textbox", { name: "Describe your clothes" }),
+    { target: { value: "blue shirt" } },
+  );
+  fireEvent.click(screen.getByRole("checkbox", { name: /I agree to send/ }));
+  fireEvent.click(
+    screen.getByRole("button", { name: "Analyse and review garments" }),
+  );
+  await screen.findByDisplayValue(samples[0].display_name);
+  fireEvent.change(
+    screen.getByRole("combobox", { name: /Possible duplicate/ }),
+    { target: { value: samples[0].item_id } },
+  );
+  fireEvent.click(
+    screen.getByRole("button", { name: "Save 1 confirmed pieces" }),
+  );
+  await screen.findByText("Saved");
+  expect(save.mock.calls[0][0].item_id).toBe(samples[0].item_id);
+  expect(save.mock.calls[0][0].display_name).toBe(samples[0].display_name);
+  expect(save.mock.calls[0][0].material).toBe("cotton");
+  vi.unstubAllGlobals();
+});

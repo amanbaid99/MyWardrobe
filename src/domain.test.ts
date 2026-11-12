@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  mergeItem,
   suggest,
   duplicates,
   samples,
@@ -110,4 +111,29 @@ test("local description capture proposes multiple editable pieces and unknown at
   assert.equal(result[2].category, "shoes");
   assert.equal(result[0].formality, "unknown");
   assert.equal(result[0].material, "unknown");
+});
+
+test("merging fills unknown fields without replacing manually confirmed details or quantity", () => {
+  const original = {
+    ...samples[0],
+    display_name: "My manually named shirt",
+    fit: "Slim fit",
+    quantity: 1,
+    material: "unknown",
+    notes: "Original note",
+  };
+  const incoming = {
+    ...original,
+    display_name: "Different generated name",
+    fit: "regular",
+    quantity: 3,
+    material: "bamboo",
+    notes: "Additional detail",
+  };
+  const merged = mergeItem(original, incoming);
+  assert.equal(merged.display_name, original.display_name);
+  assert.equal(merged.fit, "Slim fit");
+  assert.equal(merged.quantity, 1);
+  assert.equal(merged.material, "bamboo");
+  assert.match(merged.notes, /Original note/);
 });

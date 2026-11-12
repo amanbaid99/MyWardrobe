@@ -5,6 +5,7 @@ export const categories = [
   "shoes",
   "outerwear",
   "accessory",
+  "fragrance",
 ] as const;
 export type Category = (typeof categories)[number];
 export type Item = {
@@ -20,6 +21,10 @@ export type Item = {
   notes: string;
   lifecycle_status: "active" | "archived";
   created_at: string;
+  quantity?: number;
+  usage_group?: string;
+  sleeve_length?: string;
+  condition?: string;
   season?: string;
   material?: string;
   garment_length?: string;
@@ -48,14 +53,55 @@ export const labels: Record<Category, string> = {
   shoes: "Shoes",
   outerwear: "Layers",
   accessory: "Accessories",
+  fragrance: "Perfumes",
 };
 export const subtypes: Record<Category, string[]> = {
-  top: ["t-shirt", "shirt", "polo", "blouse", "sweater", "hoodie", "other"],
+  top: [
+    "t-shirt",
+    "shirt",
+    "polo",
+    "blouse",
+    "sweater",
+    "hoodie",
+    "kurta",
+    "vest",
+    "other",
+  ],
   bottom: ["trousers", "jeans", "shorts", "skirt", "other"],
   one_piece: ["dress", "jumpsuit", "other"],
-  shoes: ["sneakers", "loafers", "boots", "heels", "sandals", "flats", "other"],
+  shoes: [
+    "sneakers",
+    "loafers",
+    "boots",
+    "heels",
+    "sandals",
+    "flats",
+    "slippers",
+    "clogs",
+    "formal-shoes",
+    "other",
+  ],
   outerwear: ["jacket", "blazer", "coat", "cardigan", "other"],
-  accessory: ["belt", "bag", "scarf", "hat", "watch", "other"],
+  accessory: [
+    "belt",
+    "bag",
+    "scarf",
+    "hat",
+    "watch",
+    "socks",
+    "underwear",
+    "handkerchief",
+    "eyewear",
+    "other",
+  ],
+  fragrance: [
+    "perfume",
+    "eau-de-parfum",
+    "eau-de-toilette",
+    "cologne",
+    "body-mist",
+    "other",
+  ],
 };
 export const colours: Record<string, string> = {
   cream: "#e6dcc9",
@@ -70,9 +116,26 @@ export const colours: Record<string, string> = {
   red: "#ab534c",
   yellow: "#d4b967",
   purple: "#9683aa",
+  olive: "#80815b",
+  light_blue: "#9bbbd4",
+  sage: "#9ba88d",
+  charcoal: "#555a59",
+  beige: "#d3bd98",
+  gold: "#c5a344",
+  silver: "#b8bfc5",
+  maroon: "#753e4c",
+  lilac: "#b8a2ca",
+  rust: "#a66245",
+  light_grey: "#b6bab8",
+  pale_yellow: "#eadc9a",
+  multicolour: "#a59a8c",
   unknown: "#c5c2bc",
 };
 export const blankItem: Item = {
+  quantity: 1,
+  usage_group: "unknown",
+  sleeve_length: "unknown",
+  condition: "unknown",
   item_id: "",
   display_name: "",
   category: "top",
@@ -94,16 +157,61 @@ const words = (s: string) =>
   clean(s)
     .split(/[,\s;]+/)
     .filter(Boolean);
+export function canonicalSubtype(value: string) {
+  const v = clean(value);
+  return (
+    {
+      "formal shirt": "shirt",
+      "casual shirt": "shirt",
+      "striped shirt": "shirt",
+      "polo shirt": "polo",
+      "light jacket": "jacket",
+      tee: "t-shirt",
+      tshirt: "t-shirt",
+      trainers: "sneakers",
+      "formal shoes": "formal-shoes",
+      crocs: "clogs",
+      "boxer shorts": "shorts",
+    }[v] || v
+  );
+}
 export function duplicates(items: Item[], candidate: Partial<Item>) {
   return items.filter(
     (i) =>
       i.item_id !== candidate.item_id &&
       i.lifecycle_status === "active" &&
       i.category === candidate.category &&
-      clean(i.subcategory) === clean(candidate.subcategory || "") &&
+      canonicalSubtype(i.subcategory) ===
+        canonicalSubtype(candidate.subcategory || "") &&
       i.primary_colour === candidate.primary_colour &&
-      i.pattern === candidate.pattern,
+      (i.pattern === candidate.pattern ||
+        i.pattern === "unknown" ||
+        candidate.pattern === "unknown"),
   );
+}
+export function mergeItem(existing: Item, incoming: Item): Item {
+  const merged = { ...existing };
+  for (const key of [
+    "pattern",
+    "fit",
+    "formality",
+    "season",
+    "material",
+    "garment_length",
+    "style_tags",
+    "usage_group",
+    "sleeve_length",
+    "condition",
+  ] as const) {
+    if (!merged[key] || merged[key] === "unknown")
+      (merged as unknown as Record<string, unknown>)[key] =
+        incoming[key] || merged[key];
+  }
+  merged.notes = [existing.notes, incoming.notes]
+    .filter((v, i, a) => v && a.indexOf(v) === i)
+    .join(" · ")
+    .slice(0, 1000);
+  return merged;
 }
 export type Feedback = {
   recommendation_id: string;

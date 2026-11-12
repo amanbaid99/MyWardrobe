@@ -38,6 +38,10 @@ export function GarmentDetails({
       <h2 id="details-title">{item.display_name}</h2>
       <dl>
         {[
+          ["Quantity", String(item.quantity || 1)],
+          ["Use", item.usage_group || "unknown"],
+          ["Condition", item.condition || "unknown"],
+          ["Sleeves", item.sleeve_length || "unknown"],
           ["Colour", item.primary_colour],
           ["Type", item.subcategory],
           ["Pattern", item.pattern],
