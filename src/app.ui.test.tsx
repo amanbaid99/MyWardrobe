@@ -203,14 +203,12 @@ test("capture can explicitly merge a duplicate without creating a new record", a
   });
   vi.stubGlobal(
     "fetch",
-    vi
-      .fn()
-      .mockResolvedValue({
-        ok: true,
-        json: async () => ({
-          items: [{ ...samples[0], item_id: undefined, material: "cotton" }],
-        }),
+    vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        items: [{ ...samples[0], item_id: undefined, material: "cotton" }],
       }),
+    }),
   );
   const save = vi.fn().mockResolvedValue(samples[0]);
   render(<BulkImport items={samples} onSave={save} onClose={vi.fn()} />);
@@ -235,4 +233,27 @@ test("capture can explicitly merge a duplicate without creating a new record", a
   expect(save.mock.calls[0][0].display_name).toBe(samples[0].display_name);
   expect(save.mock.calls[0][0].material).toBe("cotton");
   vi.unstubAllGlobals();
+});
+
+test("inventory highlights missing assignments and opens the review from its filter", async () => {
+  render(<App />);
+  fireEvent.click(
+    screen.getByRole("button", { name: "Explore a sample wardrobe" }),
+  );
+  await screen.findByRole("heading", { name: /My wardrobe/ });
+  fireEvent.click(screen.getByLabelText("Needs details"));
+  expect(screen.getAllByText(/Needs details ·/).length).toBeGreaterThan(0);
+  fireEvent.click(
+    screen.getAllByRole("button", { name: /^Assign details/ })[0],
+  );
+  expect(
+    screen.getByRole("dialog", { name: "Assign missing details" }),
+  ).toBeTruthy();
+  expect(
+    (
+      screen.getByRole("button", {
+        name: "Save 0 selected details",
+      }) as HTMLButtonElement
+    ).disabled,
+  ).toBe(true);
 });

@@ -181,23 +181,21 @@ test("missing numbered source lines are reported instead of silently claiming co
   mocks.rpc.mockResolvedValue({ error: null });
   vi.stubGlobal(
     "fetch",
-    vi
-      .fn()
-      .mockResolvedValue({
-        ok: true,
-        json: async () => ({
-          choices: [
-            {
-              finish_reason: "stop",
-              message: {
-                content: JSON.stringify({
-                  items: [{ source_line: 1, display_name: "shirt" }],
-                }),
-              },
+    vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        choices: [
+          {
+            finish_reason: "stop",
+            message: {
+              content: JSON.stringify({
+                items: [{ source_line: 1, display_name: "shirt" }],
+              }),
             },
-          ],
-        }),
+          },
+        ],
       }),
+    }),
   );
   const r = response();
   await handler(
@@ -209,4 +207,40 @@ test("missing numbered source lines are reported instead of silently claiming co
     r,
   );
   expect(r.json.mock.calls[0][0].unresolved_lines[0].line).toBe(2);
+});
+
+test("assignment suggestions use the recommendation prompt with existing quota and no inventory writes", async () => {
+  vi.stubEnv("OPENROUTER_API_KEY", "test");
+  vi.stubEnv("OPENROUTER_MODEL", "example/test:free");
+  mocks.getUser.mockResolvedValue({ data: { user: { id: "user" } } });
+  mocks.rpc.mockResolvedValue({ error: null });
+  const network = vi
+    .fn()
+    .mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        choices: [
+          { message: { content: '{"items":[{"formality":"smart"}]}' } },
+        ],
+      }),
+    });
+  vi.stubGlobal("fetch", network);
+  const r = response();
+  await handler(
+    {
+      method: "POST",
+      headers: { authorization: "Bearer token" },
+      body: {
+        task: "assign",
+        text: '{"item":{"display_name":"Blazer"},"missing_fields":["formality"]}',
+        consent: true,
+      },
+    },
+    r,
+  );
+  expect(r.status).toHaveBeenCalledWith(200);
+  const payload = JSON.parse(network.mock.calls[0][1].body);
+  expect(payload.messages[0].content).toContain("recommendations, not facts");
+  expect(payload.provider.data_collection).toBe("deny");
+  expect(mocks.rpc).toHaveBeenCalledExactlyOnceWith("wardrobe_reserve_capture");
 });

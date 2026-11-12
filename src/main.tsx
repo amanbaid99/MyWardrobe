@@ -11,6 +11,8 @@ import {
   type Item,
 } from "./domain";
 import { Garment } from "./Garment";
+import { AssignmentReview } from "./AssignmentReview";
+import { missingAssignments, assignmentLabels } from "./assignments";
 import { GarmentDetails } from "./GarmentDetails";
 import { ColourChoices, FitChoices } from "./Choices";
 import { BulkImport } from "./BulkImport";
@@ -59,6 +61,8 @@ export function App() {
     [textEntry, setTextEntry] = useState(false),
     [importOpen, setImportOpen] = useState(false),
     [viewed, setViewed] = useState<Item | null>(null),
+    [assignmentId, setAssignmentId] = useState<string | null>(null),
+    [needsDetails, setNeedsDetails] = useState(false),
     [selectMode, setSelectMode] = useState(false),
     [selectedIds, setSelectedIds] = useState<Set<string>>(new Set()),
     [starterHidden, setStarterHidden] = useState(false),
@@ -195,6 +199,7 @@ export function App() {
     const n = ++epoch.current;
     setItems([]);
     setViewed(null);
+    setAssignmentId(null);
     setSelectedIds(new Set());
     setSelectMode(false);
     setFeedback([]);
@@ -285,6 +290,7 @@ export function App() {
       if (savingEpoch !== epoch.current) return;
       setArchive(saved.lifecycle_status === "archived");
       setCategory("all");
+      setNeedsDetails(false);
       setQuery("");
       setCandidates((p) => p.filter((c) => c.key !== candidateKey));
       setItems((prev) => [
@@ -578,6 +584,7 @@ export function App() {
         ? i.lifecycle_status === "archived"
         : i.lifecycle_status === "active") &&
       (category === "all" || i.category === category) &&
+      (!needsDetails || missingAssignments(i).length > 0) &&
       `${i.display_name} ${i.subcategory} ${i.primary_colour} ${i.notes}`
         .toLowerCase()
         .includes(query.trim().toLowerCase()),
@@ -1037,6 +1044,14 @@ export function App() {
                       <label className="archive-toggle">
                         <input
                           type="checkbox"
+                          checked={needsDetails}
+                          onChange={(e) => setNeedsDetails(e.target.checked)}
+                        />
+                        Needs details
+                      </label>
+                      <label className="archive-toggle">
+                        <input
+                          type="checkbox"
                           checked={archive}
                           onChange={(e) => setArchive(e.target.checked)}
                         />
@@ -1108,7 +1123,7 @@ export function App() {
                             </label>
                           )}
                           <button
-                            className="garment-card"
+                            className={`garment-card ${missingAssignments(item).length ? "needs-assignment" : ""}`}
                             key={item.item_id}
                             onClick={() => {
                               setError("");
@@ -1125,6 +1140,12 @@ export function App() {
                               <Garment item={item} />
                             </div>
                             <div className="card-info">
+                              {missingAssignments(item).length > 0 && (
+                                <span className="assignment-badge">
+                                  Needs details ·{" "}
+                                  {missingAssignments(item).length}
+                                </span>
+                              )}
                               <h2>
                                 {item.display_name}
                                 {(item.quantity || 1) > 1
@@ -1143,6 +1164,19 @@ export function App() {
                               </p>
                             </div>
                           </button>
+                          {missingAssignments(item).length > 0 && (
+                            <button
+                              className="assignment-action"
+                              onClick={() => setAssignmentId(item.item_id)}
+                            >
+                              Assign details
+                              <span>
+                                {missingAssignments(item)
+                                  .map((f) => assignmentLabels[f])
+                                  .join(", ")}
+                              </span>
+                            </button>
+                          )}
                         </div>
                       ))}
                       <button
@@ -1158,31 +1192,34 @@ export function App() {
                     <section className="empty">
                       <div className="empty-icon">♧</div>
                       <h2>
-                        {query.trim()
-                          ? "No matching pieces"
-                          : archive
-                            ? "Nothing archived"
-                            : category !== "all"
-                              ? `No ${labels[category as Category].toLowerCase()} yet`
-                              : "Your wardrobe starts with one piece."}
+                        {needsDetails
+                          ? "No pieces need details in this view"
+                          : query.trim()
+                            ? "No matching pieces"
+                            : archive
+                              ? "Nothing archived"
+                              : category !== "all"
+                                ? `No ${labels[category as Category].toLowerCase()} yet`
+                                : "Your wardrobe starts with one piece."}
                       </h2>
                       <p>
-                        {query.trim() || category !== "all"
+                        {needsDetails || query.trim() || category !== "all"
                           ? "Try another colour, name or category, or clear your filters."
                           : "Add a few everyday favourites. You can build from there."}
                       </p>
-                      {(query.trim() || category !== "all") && (
+                      {(needsDetails || query.trim() || category !== "all") && (
                         <button
                           className="secondary"
                           onClick={() => {
                             setQuery("");
                             setCategory("all");
+                            setNeedsDetails(false);
                           }}
                         >
                           Clear filters
                         </button>
                       )}
-                      {!archive && !query.trim() && (
+                      {!needsDetails && !archive && !query.trim() && (
                         <button
                           className="primary"
                           onClick={() => openEditor({ ...blank })}
@@ -1386,9 +1423,21 @@ export function App() {
           </button>
         </div>
       )}
+      {assignmentId && items.find((i) => i.item_id === assignmentId) && (
+        <AssignmentReview
+          key={`${demo ? "demo" : session?.user.id}:${assignmentId}`}
+          item={items.find((i) => i.item_id === assignmentId)!}
+          onSave={importItem}
+          onClose={() => setAssignmentId(null)}
+        />
+      )}
       {viewed && (
         <GarmentDetails
           item={viewed}
+          onAssign={() => {
+            setAssignmentId(viewed.item_id);
+            setViewed(null);
+          }}
           onClose={() => setViewed(null)}
           onEdit={() => {
             const item = viewed;

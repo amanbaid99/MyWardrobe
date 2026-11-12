@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { missingAssignments } from "./assignments";
 import { Garment } from "./Garment";
 import { Icon } from "./Icon";
 import { labels, type Item } from "./domain";
@@ -6,10 +7,12 @@ export function GarmentDetails({
   item,
   onClose,
   onEdit,
+  onAssign,
 }: {
   item: Item;
   onClose: () => void;
   onEdit: () => void;
+  onAssign?: () => void;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {
@@ -57,6 +60,11 @@ export function GarmentDetails({
         ))}
       </dl>
       {item.notes && <p>{item.notes}</p>}
+      {onAssign && missingAssignments(item).length > 0 && (
+        <button className="assignment-action" onClick={onAssign}>
+          Assign {missingAssignments(item).length} missing details
+        </button>
+      )}
       <div className="modal-footer">
         <button className="secondary" onClick={onClose}>
           Close
