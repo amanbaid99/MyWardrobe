@@ -1,13 +1,22 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import {
+  nice,
   suggest,
   type Item,
   type Look,
   type Preferences,
   type Feedback,
 } from "./domain";
-import { Garment } from "./Garment";
+import { Garment, garmentFill } from "./Garment";
+import { Chips } from "./Choices";
 import { Icon } from "./Icon";
+
+const occasions = [
+  { value: "casual", label: "Everyday" },
+  { value: "smart", label: "Work / smart" },
+  { value: "formal", label: "Formal" },
+];
+
 export function OutfitStudio({
   items,
   preferences,
@@ -15,6 +24,7 @@ export function OutfitStudio({
   onEdit,
   onRecord,
   onRate,
+  onAdd,
 }: {
   items: Item[];
   preferences: Preferences;
@@ -27,6 +37,7 @@ export function OutfitStudio({
     reason: string,
     look: Look,
   ) => Promise<void>;
+  onAdd?: () => void;
 }) {
   const [occasion, setOccasion] = useState("casual"),
     [request, setRequest] = useState(""),
@@ -37,6 +48,7 @@ export function OutfitStudio({
     [error, setError] = useState(""),
     [reason, setReason] = useState(""),
     [rating, setRating] = useState(0);
+  const stage = useRef<HTMLElement>(null);
   const revision = JSON.stringify([items, preferences]);
   useEffect(() => {
     setLook(null);
@@ -45,6 +57,10 @@ export function OutfitStudio({
     setRating(0);
     setError("");
   }, [revision, occasion, request]);
+  const activeCount = items.filter(
+    (i) => i.lifecycle_status === "active",
+  ).length;
+
   async function generate() {
     if (busy) return;
     setBusy(true);
@@ -66,6 +82,13 @@ export function OutfitStudio({
       setHistory(
         next.exhausted ? [next.signature] : [...history, next.signature],
       );
+      if (window.matchMedia?.("(max-width: 860px)").matches)
+        requestAnimationFrame(() =>
+          stage.current?.scrollIntoView?.({
+            behavior: "smooth",
+            block: "start",
+          }),
+        );
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -94,154 +117,144 @@ export function OutfitStudio({
     return item ? (
       <button
         className={`outfit-piece slot-${slot}`}
+        style={{ "--tint": garmentFill(item.primary_colour) } as CSSProperties}
         onClick={() => onEdit(item)}
         title={`View ${item.display_name}`}
       >
         <Garment item={item} />
-        <span>{item.display_name}</span>
+        <span className="piece-name">{item.display_name}</span>
         <small>
-          {item.primary_colour} · {item.subcategory} <Icon name="edit" />
+          {nice(item.primary_colour)} · {nice(item.subcategory)}
         </small>
       </button>
     ) : (
       <div className={`outfit-placeholder slot-${slot}`}>
+        <Icon name="plus" />
         <span>{label}</span>
-        <small>Not available for this look</small>
+        <small>Missing for this look</small>
       </div>
     );
   };
+  const hasLayer = !!look?.items.some((i) => i.category === "outerwear");
   return (
     <>
-      <section className="page-heading">
+      <header className="page-head">
         <div>
-          <p className="eyebrow">MAKE MORE OF WHAT YOU OWN</p>
-          <h1>
-            Outfit studio<span className="heading-dot">.</span>
-          </h1>
-          <p>One complete view. Pieces that belong together.</p>
+          <h1>Outfits</h1>
+          <p className="muted">
+            Complete looks built only from pieces you own.
+          </p>
         </div>
-      </section>
-      <div className="studio-controls">
-        <label>
-          Occasion
-          <select
-            value={occasion}
-            onChange={(e) => setOccasion(e.target.value)}
-            disabled={busy}
-          >
-            <option value="casual">Everyday / casual</option>
-            <option value="smart">Smart / work</option>
-            <option value="formal">Formal</option>
-          </select>
-        </label>
-        <label>
-          Anything in mind? <span className="optional">Optional</span>
-          <input
-            maxLength={200}
-            placeholder="e.g. blue shirt, no jeans"
-            value={request}
-            disabled={busy}
-            onChange={(e) => setRequest(e.target.value)}
-          />
-        </label>
-        <button className="primary" disabled={busy} onClick={generate}>
-          <Icon name="outfits" />
-          {busy
-            ? "Checking your wardrobe…"
-            : look
-              ? "Another look"
-              : "Style a look"}
-        </button>
-      </div>
-      <p className="fine">
-        Formal uses formal-rated pieces; smart uses smart or formal. Avoided
-        colours are excluded. Requests recognise garment and colour names, and
-        “no / avoid / without” exclusions.
-      </p>
-      {error && (
-        <div role="alert" className="alert">
-          {error}
-          <button className="text-button" onClick={generate}>
-            Try again
-          </button>
-        </div>
-      )}
-      {look ? (
-        <>
-          <div className="look-heading">
-            <h2>
-              {look.missing.length
-                ? "A look to build on"
-                : `${occasion[0].toUpperCase() + occasion.slice(1)} · your personal edit`}
-            </h2>
-            <span className="pill">
-              {look.missing.length ? "Incomplete look" : "All pieces owned"}
-            </span>
+      </header>
+      <div className="studio">
+        <section className="panel studio-controls" aria-label="Outfit options">
+          <div className="field">
+            <span className="field-label">Occasion</span>
+            <Chips
+              label="Occasion"
+              value={occasion}
+              options={occasions}
+              onChange={(v) => !busy && setOccasion(v)}
+            />
           </div>
-          <div className="outfit-composition">
-            <div
-              className="outfit-flatlay"
-              aria-label="Coordinated outfit arranged from top to shoes"
-            >
-              {look.items.some((i) => i.category === "one_piece") ? (
-                outfitSlot("one_piece", "One-piece", "one-piece")
-              ) : (
-                <>
-                  {outfitSlot("top", "Top", "top")}
-                  {outfitSlot("bottom", "Bottom", "bottom")}
-                </>
-              )}
-              {outfitSlot("shoes", "Shoes", "shoes")}
-              {look.items.some((i) => i.category === "outerwear") &&
-                outfitSlot("outerwear", "Layer", "layer")}
-              <span className="flatlay-caption">
-                YOUR WARDROBE / CLICK A PIECE FOR DETAILS
-              </span>
+          <label>
+            <span>
+              Anything in mind? <span className="optional">Optional</span>
+            </span>
+            <input
+              maxLength={200}
+              placeholder="e.g. blue shirt, no jeans"
+              value={request}
+              disabled={busy}
+              onChange={(e) => setRequest(e.target.value)}
+            />
+          </label>
+          <button
+            className="primary wide large"
+            disabled={busy}
+            onClick={generate}
+          >
+            <Icon name={look ? "shuffle" : "outfits"} />
+            {busy
+              ? "Checking your wardrobe…"
+              : look
+                ? "Another look"
+                : "Style a look"}
+          </button>
+          <details className="how">
+            <summary>How suggestions work</summary>
+            <p>
+              Formal uses formal pieces; work uses smart or formal pieces.
+              Colours you avoid are never used, and colours and fits you love
+              rank higher. You can name garments or colours ("blue shirt") or
+              exclude them ("no jeans"). Your ratings shape future looks.
+            </p>
+          </details>
+        </section>
+
+        <section className="studio-stage" ref={stage}>
+          {error && (
+            <div role="alert" className="alert">
+              {error}
+              <button className="link" onClick={generate}>
+                Try again
+              </button>
             </div>
-            <aside className="look-notes">
-              <details className="outfit-explanation">
-                <summary>Why this look</summary>
-                <p>{look.rationale}</p>
-                {look.missing.length > 0 && (
-                  <div className="missing">
-                    <b>Still needed</b>
-                    <ul>
-                      {look.missing.map((m) => (
-                        <li key={m}>{m}</li>
-                      ))}
-                    </ul>
-                    <p>
-                      These pieces are not owned or are unsuitable for the
-                      selected constraints.
-                    </p>
-                  </div>
+          )}
+          {look ? (
+            <>
+              <div className="look-heading">
+                <h2>
+                  {look.missing.length
+                    ? "A look to build on"
+                    : `Your ${occasions.find((o) => o.value === occasion)!.label.toLowerCase()} look`}
+                </h2>
+                <span className={look.missing.length ? "pill warn" : "pill"}>
+                  {look.missing.length ? "Incomplete" : "All pieces owned"}
+                </span>
+              </div>
+              <div
+                className="outfit-flatlay"
+                data-layer={hasLayer || undefined}
+                data-layout={
+                  look.items.some((i) => i.category === "one_piece")
+                    ? "one-piece"
+                    : "separates"
+                }
+                aria-label="Coordinated outfit arranged from top to shoes"
+              >
+                {look.items.some((i) => i.category === "one_piece") ? (
+                  outfitSlot("one_piece", "One-piece", "one-piece")
+                ) : (
+                  <>
+                    {outfitSlot("top", "Top", "top")}
+                    {outfitSlot("bottom", "Bottoms", "bottom")}
+                  </>
                 )}
-                {look.warnings.map((w) => (
-                  <p className="fine" key={w}>
-                    <Icon name="info" /> {w}
+                {outfitSlot("shoes", "Shoes", "shoes")}
+                {hasLayer && outfitSlot("outerwear", "Layer", "layer")}
+              </div>
+              <p className="muted small center">
+                Tap a piece to see its details.
+              </p>
+
+              {look.missing.length > 0 && (
+                <div className="callout warn">
+                  <p>
+                    <b>Still needed: {look.missing.join(", ")}.</b> These aren't
+                    in your wardrobe yet or don't suit this occasion.
                   </p>
-                ))}
-                <p className="fine">
-                  {look.totalCandidates} suitable{" "}
-                  {look.totalCandidates === 1 ? "combination" : "combinations"}{" "}
-                  available.
-                  {look.exhausted
-                    ? " You’ve seen them all; starting a new cycle."
-                    : ""}
-                </p>
-              </details>
+                  {onAdd && (
+                    <button className="secondary small" onClick={onAdd}>
+                      <Icon name="plus" /> Add a piece
+                    </button>
+                  )}
+                </div>
+              )}
+
               {recordId && (
-                <div className="outfit-feedback">
+                <div className="panel outfit-feedback">
                   <h3>Would you wear this?</h3>
-                  <label>
-                    Optional reason
-                    <textarea
-                      maxLength={500}
-                      value={reason}
-                      onChange={(e) => setReason(e.target.value)}
-                      placeholder="What works—or what would you change?"
-                    />
-                  </label>
                   <div className="feedback-actions">
                     <button
                       className={
@@ -266,27 +279,88 @@ export function OutfitStudio({
                       Not for me
                     </button>
                   </div>
+                  <details className="how" open={rating !== 0 || undefined}>
+                    <summary>Add a reason</summary>
+                    <label>
+                      <span className="sr-only">Optional reason</span>
+                      <textarea
+                        maxLength={500}
+                        value={reason}
+                        onChange={(e) => setReason(e.target.value)}
+                        placeholder="What works, or what would you change?"
+                      />
+                    </label>
+                    {rating !== 0 && (
+                      <button
+                        className="secondary small"
+                        disabled={busy}
+                        onClick={() => rate(rating)}
+                      >
+                        Update rating
+                      </button>
+                    )}
+                  </details>
                   {rating !== 0 && (
-                    <p role="status" className="fine">
-                      Rating saved. It will influence future looks. Change the
-                      reason and rate again to update it.
+                    <p role="status" className="muted small">
+                      <Icon name="check" /> Thanks. This will shape future
+                      looks.
                     </p>
                   )}
                 </div>
               )}
-            </aside>
-          </div>
-        </>
-      ) : (
-        <div className="studio-empty">
-          <Icon name="outfits" />
-          <h2>A good outfit starts with your pieces.</h2>
-          <p>
-            Choose an occasion. We’ll arrange the top, bottoms and shoes as one
-            look—no model needed.
-          </p>
-        </div>
-      )}
+
+              <details className="panel outfit-explanation">
+                <summary>Why this look</summary>
+                <p>{look.rationale}</p>
+                {look.warnings.map((w) => (
+                  <p className="muted small" key={w}>
+                    <Icon name="info" /> {w}
+                  </p>
+                ))}
+                <p className="muted small">
+                  {look.totalCandidates} suitable{" "}
+                  {look.totalCandidates === 1 ? "combination" : "combinations"}{" "}
+                  available.
+                  {look.exhausted
+                    ? " You’ve seen them all; starting a new cycle."
+                    : ""}
+                </p>
+              </details>
+            </>
+          ) : (
+            <div className="studio-empty">
+              <div className="studio-empty-art" aria-hidden="true">
+                {(["top", "bottom", "shoes"] as const).map((c, n) => (
+                  <Garment
+                    key={c}
+                    item={{
+                      category: c,
+                      subcategory: ["shirt", "trousers", "sneakers"][n],
+                      primary_colour: ["light_blue", "beige", "white"][n],
+                      pattern: "solid",
+                    }}
+                  />
+                ))}
+              </div>
+              <h2>
+                {activeCount
+                  ? "Ready when you are"
+                  : "Add pieces to start styling"}
+              </h2>
+              <p className="muted">
+                {activeCount
+                  ? "Pick an occasion and tap Style a look. We'll put together a top, bottoms and shoes from your wardrobe."
+                  : "A top, some bottoms and a pair of shoes are enough for your first outfit."}
+              </p>
+              {!activeCount && onAdd && (
+                <button className="primary" onClick={onAdd}>
+                  <Icon name="plus" /> Add a piece
+                </button>
+              )}
+            </div>
+          )}
+        </section>
+      </div>
     </>
   );
 }

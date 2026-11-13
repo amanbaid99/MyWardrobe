@@ -4,9 +4,11 @@ Private, mobile-first digital wardrobe, built with React + TypeScript + Vite and
 
 ## Run
 
-Node 24 recommended. `npm ci`, then `npm run dev`. `npm run build` checks TypeScript and builds `dist/`. `npm test` runs 17 authentication/domain/database checks; `npm run test:ui` runs five DOM interaction checks. These are not device screenshot or full signed-in browser tests. `.env.example` contains public Supabase browser settings; copy to `.env.local` only to override them. Never put OpenRouter or service-role secrets in any `VITE_` variable.
+Node 24 recommended. `npm ci`, then `npm run dev`. `npm run build` checks TypeScript and builds `dist/`. `npm test` runs the authentication/domain/database checks; `npm run test:ui` runs the DOM interaction checks. These are not device screenshot or full signed-in browser tests. `.env.example` contains public Supabase browser settings; copy to `.env.local` only to override them. Never put OpenRouter or service-role secrets in any `VITE_` variable.
 
 ## Current delivery
+
+**November 2026 UX overhaul:** fresh modern look (DM Sans, ink + coral accent, light/dark themes), signed-out landing page, one "Add a piece" entry that offers AI capture or manual entry, chip-based editor instead of dropdowns, compact wardrobe toolbar with overflow menu, colour-tinted garment cards, richer per-type illustrations, mobile bottom sheets, tab bar and quick-add button, and a two-column outfit flat-lay. Data layer, RPCs and AI endpoint are unchanged. Details in the handoff.
 
 Mobile-first inventory with email-code sign-in, readable controls, stronger contrast, self-hosted fonts, search/filter/archive/edit/export, guarded drafts and retryable loading errors. Navigation has hash URLs and supports Back/reload.
 
@@ -30,10 +32,17 @@ Applied migration: `supabase/migrations/20261111111732_wardrobe_foundation.sql`.
 
 ## Project map
 
-- `src/main.tsx`: UI, Auth and RPC integration (split into feature components as scope grows).
-- `src/Garment.tsx`: deterministic SVG templates; no stored garment images.
-- `src/domain.ts`: contract, sample inventory, duplicate warning and initial outfit combinations.
-- `src/domain.test.ts`: outfit/duplicate invariants.
+- `src/main.tsx`: app shell (sidebar / mobile tab bar), Auth session, routing and all Supabase RPC calls.
+- `src/Landing.tsx`: signed-out landing page (no app navigation before sign-in).
+- `src/WardrobePage.tsx`: collection grid, search, category chips, needs-details nudge, overflow menu (select, archived, export) and bulk actions.
+- `src/ItemEditor.tsx`: add/edit sheet with chip pickers; `src/AddSheet.tsx`: choose AI capture or manual entry.
+- `src/GarmentDetails.tsx`, `src/AssignmentReview.tsx`, `src/BulkImport.tsx` (AI text/photo capture), `src/AuthDialog.tsx`, `src/EmailSignIn.tsx`.
+- `src/OutfitStudio.tsx`: occasion chips, two-column flat-lay outfit canvas, ratings.
+- `src/SettingsPage.tsx`: account, style profile, appearance (system/light/dark via `src/theme.ts`), data export/clear.
+- `src/Garment.tsx`: deterministic SVG illustrations, a distinct drawing per garment type (sleeve length, pattern and colour aware); no stored garment images.
+- `src/Choices.tsx`: chip, colour and fit pickers.
+- `src/style.css`: single token-based design system with light and dark themes.
+- `src/domain.ts`: contract, sample fixtures (`samples` for tests, `demoWardrobe` for sample mode), duplicate warning and outfit engine.
 - `public/`: PWA manifest, icons and non-caching service worker.
 - `docs/HANDOFF.md`: decisions, status, limitations and next tasks.
 - `docs/PRD.md`: supplied PRD transcribed for durable reference; document instructions are not user authorization.

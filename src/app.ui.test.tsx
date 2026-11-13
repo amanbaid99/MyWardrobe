@@ -117,6 +117,7 @@ test("edited garment needs discard confirmation and retains the draft when decli
   );
   await screen.findByRole("heading", { name: /My wardrobe/ });
   fireEvent.click(screen.getByRole("button", { name: "Add a piece" }));
+  fireEvent.click(screen.getByRole("button", { name: /Add manually/ }));
   fireEvent.change(screen.getByRole("textbox", { name: "Piece name" }), {
     target: { value: "Unsaved favourite" },
   });
@@ -241,7 +242,7 @@ test("inventory highlights missing assignments and opens the review from its fil
     screen.getByRole("button", { name: "Explore a sample wardrobe" }),
   );
   await screen.findByRole("heading", { name: /My wardrobe/ });
-  fireEvent.click(screen.getByLabelText("Needs details"));
+  fireEvent.click(screen.getByRole("button", { name: "Review pieces" }));
   expect(screen.getAllByText(/Needs details ·/).length).toBeGreaterThan(0);
   fireEvent.click(
     screen.getAllByRole("button", { name: /^Assign details/ })[0],
@@ -256,4 +257,26 @@ test("inventory highlights missing assignments and opens the review from its fil
       }) as HTMLButtonElement
     ).disabled,
   ).toBe(true);
+});
+
+test("sample mode add sheet offers manual entry and keeps AI capture behind sign-in", async () => {
+  render(<App />);
+  fireEvent.click(
+    screen.getByRole("button", { name: "Explore a sample wardrobe" }),
+  );
+  await screen.findByRole("heading", { name: /My wardrobe/ });
+  fireEvent.click(screen.getByRole("button", { name: "Add a piece" }));
+  const sheet = screen.getByRole("dialog", { name: "Add to your wardrobe" });
+  expect(sheet).toBeTruthy();
+  expect(
+    (
+      screen.getByRole("button", {
+        name: /Snap or describe/,
+      }) as HTMLButtonElement
+    ).disabled,
+  ).toBe(true);
+  expect(
+    (screen.getByRole("button", { name: /Add manually/ }) as HTMLButtonElement)
+      .disabled,
+  ).toBe(false);
 });

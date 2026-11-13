@@ -454,9 +454,40 @@ export function parseDescription(text: string): Partial<Item>[] {
       };
     });
 }
-export const samples: Item[] = [
-  ["Oxford shirt", "top", "shirt", "blue", "solid", "regular", "smart"],
-  ["Everyday tee", "top", "t-shirt", "cream", "solid", "relaxed", "casual"],
+type SampleRow = [
+  string,
+  Category,
+  string,
+  string,
+  string,
+  string,
+  string,
+  string?,
+  string?,
+];
+const sampleRows: SampleRow[] = [
+  [
+    "Oxford shirt",
+    "top",
+    "shirt",
+    "blue",
+    "solid",
+    "regular",
+    "smart",
+    "out",
+    "full",
+  ],
+  [
+    "Everyday tee",
+    "top",
+    "t-shirt",
+    "cream",
+    "solid",
+    "relaxed",
+    "casual",
+    "everyday",
+    "half",
+  ],
   [
     "Straight-leg denim",
     "bottom",
@@ -465,6 +496,7 @@ export const samples: Item[] = [
     "solid",
     "straight",
     "casual",
+    "everyday",
   ],
   [
     "Weekend chinos",
@@ -474,6 +506,7 @@ export const samples: Item[] = [
     "solid",
     "straight",
     "smart",
+    "out",
   ],
   [
     "Court sneakers",
@@ -483,6 +516,7 @@ export const samples: Item[] = [
     "solid",
     "regular",
     "casual",
+    "everyday",
   ],
   [
     "The linen layer",
@@ -492,18 +526,115 @@ export const samples: Item[] = [
     "solid",
     "relaxed",
     "casual",
+    "out",
   ],
-].map((a, n) => ({
+  [
+    "Breton stripe tee",
+    "top",
+    "t-shirt",
+    "navy",
+    "striped",
+    "regular",
+    "casual",
+    "unknown",
+    "half",
+  ],
+  [
+    "Charcoal hoodie",
+    "top",
+    "hoodie",
+    "charcoal",
+    "solid",
+    "relaxed",
+    "casual",
+    "home",
+  ],
+  [
+    "Tan loafers",
+    "shoes",
+    "loafers",
+    "rust",
+    "solid",
+    "regular",
+    "smart",
+    "out",
+  ],
+  [
+    "Navy blazer",
+    "outerwear",
+    "blazer",
+    "navy",
+    "solid",
+    "slim",
+    "formal",
+    "out",
+  ],
+  [
+    "Grey tailored trousers",
+    "bottom",
+    "trousers",
+    "grey",
+    "solid",
+    "slim",
+    "formal",
+    "out",
+  ],
+  [
+    "White formal shirt",
+    "top",
+    "shirt",
+    "white",
+    "solid",
+    "slim",
+    "formal",
+    "out",
+    "full",
+  ],
+  [
+    "Black oxfords",
+    "shoes",
+    "formal-shoes",
+    "black",
+    "solid",
+    "regular",
+    "formal",
+    "out",
+  ],
+  [
+    "Leather belt",
+    "accessory",
+    "belt",
+    "brown",
+    "solid",
+    "regular",
+    "smart",
+    "unknown",
+  ],
+];
+/** Full sample-mode wardrobe. */
+export const demoWardrobe: Item[] = sampleRows.map((a, n) => ({
   ...blankItem,
   item_id: `sample-${n}`,
   display_name: a[0],
-  category: a[1] as Category,
+  category: a[1],
   subcategory: a[2],
   primary_colour: a[3],
   pattern: a[4],
   fit: a[5],
   formality: a[6],
+  usage_group: a[7] || "unknown",
+  sleeve_length: a[8] || "unknown",
+  condition: "good",
   lifecycle_status: "active",
   created_at: new Date(2026, 10, 11).toISOString(),
   season: "all",
 }));
+/** Core six-piece fixture used by tests and the landing page. */
+export const samples: Item[] = demoWardrobe.slice(0, 6);
+/** Human-friendly label for stored option values ("formal-shoes" -> "Formal shoes"). */
+export function nice(value?: string) {
+  if (!value) return "";
+  if (value === "t-shirt") return "T-shirt";
+  const text = value.replace(/[_-]+/g, " ").trim();
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}

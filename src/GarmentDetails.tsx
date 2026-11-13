@@ -1,8 +1,9 @@
-import { useEffect, useRef } from "react";
-import { missingAssignments } from "./assignments";
-import { Garment } from "./Garment";
+import { useEffect, useRef, type CSSProperties } from "react";
+import { assignmentLabels, missingAssignments } from "./assignments";
+import { Garment, garmentFill } from "./Garment";
 import { Icon } from "./Icon";
-import { labels, type Item } from "./domain";
+import { labels, nice, type Item } from "./domain";
+
 export function GarmentDetails({
   item,
   onClose,
@@ -18,54 +19,75 @@ export function GarmentDetails({
   useEffect(() => {
     ref.current?.showModal();
   }, []);
+  const missing = missingAssignments(item);
+  const known = (v?: string) => !!v && v !== "unknown";
+  const facts = [
+    ["Type", item.subcategory],
+    ["Colour", item.primary_colour],
+    ["Occasion", item.formality],
+    ["Use", item.usage_group],
+    ["Fit", item.fit],
+    ["Pattern", item.pattern],
+    ["Sleeves", item.sleeve_length],
+    ["Season", item.season],
+    ["Condition", item.condition],
+    ["Material", item.material],
+    ["Length", item.garment_length],
+    ["Quantity", (item.quantity || 1) > 1 ? String(item.quantity) : ""],
+  ].filter(([, v]) => known(v));
   return (
     <dialog
       ref={ref}
-      className="garment-details"
+      className="sheet garment-details"
       aria-labelledby="details-title"
       onCancel={onClose}
+      onClick={(e) => {
+        if (e.target === ref.current) onClose();
+      }}
     >
-      <button
-        className="close"
-        aria-label="Close garment details"
-        onClick={onClose}
+      <div
+        className="details-art"
+        style={{ "--tint": garmentFill(item.primary_colour) } as CSSProperties}
       >
-        ×
-      </button>
-      <div className="details-art">
         <Garment item={item} />
-      </div>
-      <p className="eyebrow">
-        {labels[item.category]} · {item.lifecycle_status}
-      </p>
-      <h2 id="details-title">{item.display_name}</h2>
-      <dl>
-        {[
-          ["Quantity", String(item.quantity || 1)],
-          ["Use", item.usage_group || "unknown"],
-          ["Condition", item.condition || "unknown"],
-          ["Sleeves", item.sleeve_length || "unknown"],
-          ["Colour", item.primary_colour],
-          ["Type", item.subcategory],
-          ["Pattern", item.pattern],
-          ["Fit", item.fit],
-          ["Occasion", item.formality],
-          ["Season", item.season || "unknown"],
-          ["Material", item.material || "unknown"],
-        ].map(([key, value]) => (
-          <div key={key}>
-            <dt>{key}</dt>
-            <dd>{value}</dd>
-          </div>
-        ))}
-      </dl>
-      {item.notes && <p>{item.notes}</p>}
-      {onAssign && missingAssignments(item).length > 0 && (
-        <button className="assignment-action" onClick={onAssign}>
-          Assign {missingAssignments(item).length} missing details
+        <button
+          className="icon-button floating"
+          aria-label="Close garment details"
+          onClick={onClose}
+        >
+          <Icon name="close" />
         </button>
-      )}
-      <div className="modal-footer">
+      </div>
+      <div className="sheet-body stack">
+        <div>
+          <p className="kicker">
+            {labels[item.category]}
+            {item.lifecycle_status === "archived" ? " · Archived" : ""}
+          </p>
+          <h2 id="details-title">{item.display_name}</h2>
+        </div>
+        {facts.length > 0 && (
+          <dl className="facts">
+            {facts.map(([key, value]) => (
+              <div key={key}>
+                <dt>{key}</dt>
+                <dd>
+                  {key === "Use" && value === "out" ? "Going out" : nice(value)}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        )}
+        {item.style_tags && <p className="muted">Style: {item.style_tags}</p>}
+        {item.notes && <p className="notes">{item.notes}</p>}
+        {onAssign && missing.length > 0 && (
+          <button className="assignment-action" onClick={onAssign}>
+            Assign {missing.length} missing details
+            <span>{missing.map((f) => assignmentLabels[f]).join(", ")}</span>
+          </button>
+        )}
+      </div>
+      <div className="sheet-foot">
         <button className="secondary" onClick={onClose}>
           Close
         </button>

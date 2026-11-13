@@ -197,3 +197,25 @@ Applied using the existing save RPC under the selected owner's authenticated rol
 Applied the user's replies to the physical-detail questions. Updated 35 retained records with confirmed sleeve lengths, solid patterns and an explicitly supplied colour; retained named logo/graphic designs and the existing printed kurta pattern. Archived 10 user-requested items (including interpreting underwear to encompass boxers/briefs/banyans) rather than permanently deleting them. Archive scope was explained before the operation. There are now 55 active records and 10 recoverable archived records. Other unspecified physical details remain unknown.
 
 Used the existing owner-scoped authenticated save RPC/RLS, an atomic transaction, per-record updated_at guards and count assertions. Dry run rolled back successfully; post-commit verification matched every expected field for all 65 records. Existing IDs, quantities, notes and other details were preserved. No schema, Auth, membership, finance or application-code changes. No personal source text or item dump committed. This is a one-off user-authorized data operation and must not be replayed.
+
+## UX overhaul (13 November 2026)
+
+User asked to run the app, review it and overhaul it to be "much much better and friendly to use". Answers to scoping questions: restructure UX + restyle (no new features, no database changes); better illustrations (not real photos); fresh modern app look; ship to production when build and tests pass.
+
+Review findings that drove the changes: app navigation shown before sign-in; desktop sidebar background stopped at the viewport height; the wardrobe page put a hero, stats card, starter checklist, three different add buttons, filters and checkboxes before any clothes (clothes started about 1,400px down on a phone); every sample card carried a large "Assign details" button; the editor used dropdowns with raw values ("unknown", "t-shirt"); outfit results sat below a paragraph of technical rules; copy leaked internals (tracker, OpenRouter, finance); all garment types of a category shared one silhouette.
+
+What changed (presentation only; RPC calls, domain logic, AI endpoint, quotas and consent flows are unchanged):
+
+- `main.tsx` reduced to shell, session, routing and data calls. New components: Landing, WardrobePage, ItemEditor, AddSheet, SettingsPage, AuthDialog, theme.ts.
+- New token-based `style.css` replacing the old stylesheet and its stacked overrides. Light/dark themes follow the device, with a Settings override stored in localStorage (try/catch; convenience only). Libre Caslon is no longer imported (the dependency remains in package.json, unused).
+- Wardrobe: compact header, sticky search, overflow menu (Select pieces, Show archived, Export), category chips, a single needs-details nudge ("Review pieces") that switches into the assignment view, colour-tinted cards, mobile tab bar and floating add button.
+- Add flow: "Add a piece" opens a sheet with "Snap or describe" (AI capture; disabled in sample mode with a sign-in prompt) and "Add manually".
+- Editor: chips for category, type, colour, occasion, pattern, fit, sleeves and use; less common fields under More details; archive/delete in the footer. Dialogs render as bottom sheets on phones.
+- Outfits: occasion chips, rules moved into "How suggestions work", two-column flat-lay (top, bottoms, shoes, optional layer; one-piece layout), rating with optional reason, explanation collapsible.
+- Settings: account card with sign in/out, compact colour swatch pickers for preferred/avoided colours, appearance, data export/clear, privacy link.
+- Illustrations: distinct SVG per subtype (shirt, polo, blouse, sweater, hoodie, kurta, vest, trousers, jeans, shorts, skirt, dress, jumpsuit, jacket, blazer, coat, cardigan, nine shoe types, belt, bag, scarf, hat, watch, socks, underwear, handkerchief, eyewear, fragrance bottles), with pattern and sleeve-length support.
+- Sample mode now shows `demoWardrobe` (14 pieces, two intentionally missing details). `samples` (first six) remains the test fixture.
+
+Verification: `npm run build` passes; `npm test` 25/25; `npm run test:ui` 22/22 (two tests updated for the add sheet and the nudge, one added for sample-mode add options). Sample-mode UI was checked with Playwright screenshots at 390px and 1366px in light and dark themes. Not verified: signed-in flows against production Supabase, live AI capture, real-device install. The bundle is still about 538 kB (Supabase client); code-splitting remains a possible follow-up.
+
+Next ideas, not started: code-split the Supabase client and dialogs; saved outfits and a wear log (would need a reviewed migration); swipe-to-dismiss sheets.
