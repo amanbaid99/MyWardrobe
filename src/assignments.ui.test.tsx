@@ -65,21 +65,19 @@ test("AI requires consent, sends no identity, and leaves every suggestion unsele
   auth.getSession.mockResolvedValue({
     data: { session: { access_token: "test-token" } },
   });
-  const network = vi
-    .fn()
-    .mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        items: [
-          {
-            formality: "smart",
-            usage_group: "everyday",
-            primary_colour: "red",
-            sleeve_length: "invalid",
-          },
-        ],
-      }),
-    });
+  const network = vi.fn().mockResolvedValue({
+    ok: true,
+    json: async () => ({
+      items: [
+        {
+          formality: "smart",
+          usage_group: "everyday",
+          primary_colour: "red",
+          sleeve_length: "invalid",
+        },
+      ],
+    }),
+  });
   vi.stubGlobal("fetch", network);
   const save = vi.fn().mockResolvedValue(item);
   render(<AssignmentReview item={item} onSave={save} onClose={() => {}} />);

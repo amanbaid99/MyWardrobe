@@ -1,6 +1,13 @@
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import {
+  lazy,
+  Suspense,
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react";
 import type { Session } from "@supabase/supabase-js";
-import { supabase } from "./client";
+import { db } from "./db";
 import {
   demoWardrobe,
   emptyPreferences,
@@ -9,23 +16,65 @@ import {
   type Item,
 } from "./domain";
 import type { Feedback, Look } from "./domain";
-import { AssignmentReview } from "./AssignmentReview";
 import { GarmentDetails } from "./GarmentDetails";
-import { BulkImport } from "./BulkImport";
 import { Icon } from "./Icon";
-import { OutfitStudio } from "./OutfitStudio";
-import { Privacy } from "./Privacy";
 import { Landing } from "./Landing";
 import { WardrobePage } from "./WardrobePage";
-import { SettingsPage } from "./SettingsPage";
 import { ItemEditor } from "./ItemEditor";
 import { AddSheet } from "./AddSheet";
-import { AuthDialog, type AuthMode } from "./AuthDialog";
+import type { AuthMode } from "./AuthDialog";
 import "@fontsource/dm-sans/latin-400.css";
 import "@fontsource/dm-sans/latin-500.css";
 import "@fontsource/dm-sans/latin-600.css";
 import "@fontsource/dm-sans/latin-700.css";
 import "./style.css";
+
+// Screens and dialogs that are not needed for first paint load on demand.
+const load = {
+  outfits: () => import("./OutfitStudio"),
+  settings: () => import("./SettingsPage"),
+  privacy: () => import("./Privacy"),
+  capture: () => import("./BulkImport"),
+  assign: () => import("./AssignmentReview"),
+  auth: () => import("./AuthDialog"),
+};
+const OutfitStudio = lazy(() =>
+  load.outfits().then((m) => ({ default: m.OutfitStudio })),
+);
+const SettingsPage = lazy(() =>
+  load.settings().then((m) => ({ default: m.SettingsPage })),
+);
+const Privacy = lazy(() =>
+  load.privacy().then((m) => ({ default: m.Privacy })),
+);
+const BulkImport = lazy(() =>
+  load.capture().then((m) => ({ default: m.BulkImport })),
+);
+const AssignmentReview = lazy(() =>
+  load.assign().then((m) => ({ default: m.AssignmentReview })),
+);
+const AuthDialog = lazy(() =>
+  load.auth().then((m) => ({ default: m.AuthDialog })),
+);
+/** Warm the on-demand chunks once the browser is idle so navigation stays instant. */
+function prefetch(signedIn: boolean) {
+  const run = () => {
+    void db();
+    void load.auth();
+    if (signedIn) Object.values(load).forEach((f) => void f());
+  };
+  const idle = (
+    window as Window & { requestIdleCallback?: (cb: () => void) => void }
+  ).requestIdleCallback;
+  if (idle) idle(run);
+  else setTimeout(run, 1200);
+}
+const PageLoading = () => (
+  <section className="loading" role="status" aria-label="Loading">
+    <div className="skeleton head" />
+    <div className="skeleton block" />
+  </section>
+);
 
 const pages = ["wardrobe", "outfits", "preferences", "privacy"];
 const nav: [string, string, string][] = [
@@ -54,7 +103,9 @@ export function App() {
     [page, setPageState] = useState(() => location.hash.slice(1) || "wardrobe"),
     [editor, setEditor] = useState<Item | null>(null),
     [error, setError] = useState(""),
-    [notice, setNotice] = useState(""),
+    [toast, setToast] = useState<{ text: string; undo?: () => void } | null>(
+      null,
+    ),
     [busy, setBusy] = useState(false),
     [authOpen, setAuthOpen] = useState(false),
     [authMode, setAuthMode] = useState<AuthMode>("login"),
@@ -75,7 +126,8 @@ export function App() {
       null,
     ),
     [confirmText, setConfirmText] = useState(""),
-    [prefs, setPrefs] = useState(emptyPreferences);
+    [prefs, setPrefs] = useState(emptyPreferences),
+    [styleOccasion, setStyleOccasion] = useState("casual");
   const epoch = useRef(0);
   const draftOwner = useRef<string | null>(null);
   const navigationGuard = useRef({ dirty: false, page: "wardrobe" });
@@ -157,36 +209,45 @@ export function App() {
     setConfirmText("");
   }, [confirmAction]);
   useEffect(() => {
-    supabase.auth
-      .getSession()
-      .then(({ data, error }) => {
+    let unsubscribe = () => {};
+    let cancelled = false;
+    db()
+      .then(async (supabase) => {
+        if (cancelled) return;
+        const { data } = supabase.auth.onAuthStateChange((event, s) => {
+          setSession(s);
+          if (event === "PASSWORD_RECOVERY") {
+            setAuthMode("update");
+            setAuthOpen(true);
+          }
+          if (event === "SIGNED_OUT") {
+            epoch.current++;
+            setItems([]);
+            setAccess(false);
+            setFeedback([]);
+            setImportOpen(false);
+            setBusy(false);
+            setLoadState("idle");
+          }
+        });
+        unsubscribe = () => data.subscription.unsubscribe();
+        const { data: restored, error } = await supabase.auth.getSession();
+        if (cancelled) return;
         if (error) setError(error.message);
-        setSession(data.session);
+        setSession(restored.session);
         setReady(true);
       })
       .catch(() => {
+        if (cancelled) return;
         setError(
-          "Could not restore your sign-in session. Please sign in again.",
+          "Could not restore your sign-in session. Please check your connection and reload.",
         );
         setReady(true);
       });
-    const { data } = supabase.auth.onAuthStateChange((event, s) => {
-      setSession(s);
-      if (event === "PASSWORD_RECOVERY") {
-        setAuthMode("update");
-        setAuthOpen(true);
-      }
-      if (event === "SIGNED_OUT") {
-        epoch.current++;
-        setItems([]);
-        setAccess(false);
-        setFeedback([]);
-        setImportOpen(false);
-        setBusy(false);
-        setLoadState("idle");
-      }
-    });
-    return () => data.subscription.unsubscribe();
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
   }, []);
   useEffect(() => {
     const n = ++epoch.current;
@@ -215,7 +276,8 @@ export function App() {
       return;
     }
     setLoadState("loading");
-    Promise.resolve(supabase.rpc("wardrobe_bootstrap"))
+    db()
+      .then((supabase) => supabase.rpc("wardrobe_bootstrap"))
       .then(({ data, error }) => {
         if (n !== epoch.current) return;
         if (error) throw error;
@@ -237,10 +299,13 @@ export function App() {
     };
   }, [session?.user.id, demo, loadVersion]);
   useEffect(() => {
-    if (!notice) return;
-    const t = setTimeout(() => setNotice(""), 4000);
+    if (ready) prefetch(!!session || demo);
+  }, [ready, !!session || demo]);
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), toast.undo ? 6000 : 4000);
     return () => clearTimeout(t);
-  }, [notice]);
+  }, [toast]);
 
   async function save(e: FormEvent) {
     e.preventDefault();
@@ -262,7 +327,9 @@ export function App() {
           created_at: editor.created_at || new Date().toISOString(),
         };
       else {
-        const { data, error } = await supabase.rpc("wardrobe_save_item", {
+        const { data, error } = await (
+          await db()
+        ).rpc("wardrobe_save_item", {
           payload: editor,
         });
         if (error) throw error;
@@ -305,7 +372,9 @@ export function App() {
         created_at: item.created_at || new Date().toISOString(),
       };
     else {
-      const { data, error } = await supabase.rpc("wardrobe_save_item", {
+      const { data, error } = await (
+        await db()
+      ).rpc("wardrobe_save_item", {
         payload: item,
       });
       if (error) throw error;
@@ -323,7 +392,9 @@ export function App() {
     setBusy(true);
     try {
       if (live) {
-        const { error } = await supabase.rpc("wardrobe_delete_item", {
+        const { error } = await (
+          await db()
+        ).rpc("wardrobe_delete_item", {
           target_id: editor.item_id,
         });
         if (error) throw error;
@@ -343,7 +414,9 @@ export function App() {
     setBusy(true);
     try {
       if (live) {
-        const { error } = await supabase.rpc("wardrobe_save_preferences", {
+        const { error } = await (
+          await db()
+        ).rpc("wardrobe_save_preferences", {
           payload: prefs,
         });
         if (error) throw error;
@@ -362,7 +435,7 @@ export function App() {
     let recommendations: unknown[] = [];
     let exportedFeedback = feedback;
     if (live) {
-      const { data, error } = await supabase.rpc("wardrobe_export_data");
+      const { data, error } = await (await db()).rpc("wardrobe_export_data");
       if (error) {
         setError("Export failed. Please try again.");
         return;
@@ -380,16 +453,15 @@ export function App() {
   }
   async function recordLook(look: Look, occasion: string, id: string) {
     if (demo) return id;
-    const { data, error } = await supabase.rpc(
-      "wardrobe_record_recommendation",
-      {
-        request_id: id,
-        owned_ids: look.items.map((i) => i.item_id),
-        selected_occasion: occasion,
-        explanation: look.rationale,
-        missing_slots: look.missing,
-      },
-    );
+    const { data, error } = await (
+      await db()
+    ).rpc("wardrobe_record_recommendation", {
+      request_id: id,
+      owned_ids: look.items.map((i) => i.item_id),
+      selected_occasion: occasion,
+      explanation: look.rationale,
+      missing_slots: look.missing,
+    });
     if (error)
       throw new Error(
         "Could not validate and save this look. Please reload your wardrobe and try again.",
@@ -407,7 +479,9 @@ export function App() {
     look: Look,
   ) {
     if (live) {
-      const { error } = await supabase.rpc("wardrobe_rate_recommendation", {
+      const { error } = await (
+        await db()
+      ).rpc("wardrobe_rate_recommendation", {
         target_id: id,
         rating_value: rating,
         reason_text: reason,
@@ -430,7 +504,7 @@ export function App() {
     setError("");
     try {
       if (live) {
-        const { error } = await supabase.rpc("wardrobe_clear_data");
+        const { error } = await (await db()).rpc("wardrobe_clear_data");
         if (error) throw error;
       }
       setItems([]);
@@ -457,10 +531,28 @@ export function App() {
     setPrefs(emptyPreferences);
     setSavedPrefs(emptyPreferences);
     draftOwner.current = null;
-    const { error } = await supabase.auth.signOut({ scope: "local" });
+    const { error } = await (await db()).auth.signOut({ scope: "local" });
     if (error) setError(error.message);
   }
 
+  function setNotice(text: string, undo?: () => void) {
+    setToast(text ? { text, undo } : null);
+  }
+  async function toggleArchive(item: Item) {
+    const next = item.lifecycle_status === "active" ? "archived" : "active";
+    try {
+      const saved = await importItem({ ...item, lifecycle_status: next });
+      setNotice(
+        `${saved.display_name} ${next === "archived" ? "archived" : "restored"}.`,
+        () =>
+          void importItem({ ...saved, lifecycle_status: item.lifecycle_status })
+            .then(() => setNotice("Undone."))
+            .catch((e) => setError((e as Error).message)),
+      );
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
   const active = items.filter((i) => i.lifecycle_status === "active");
   const banners = (
     <>
@@ -494,7 +586,9 @@ export function App() {
             <Icon name="arrow" /> Back
           </button>
           {banners}
-          <Privacy />
+          <Suspense fallback={<PageLoading />}>
+            <Privacy />
+          </Suspense>
         </div>
       ) : (
         <>
@@ -596,99 +690,105 @@ export function App() {
               </div>
             )}
             {banners}
-            {page === "privacy" ? (
-              <Privacy />
-            ) : loadState === "loading" ? (
-              <section
-                className="loading"
-                role="status"
-                aria-label="Opening your wardrobe…"
-              >
-                <div className="skeleton head" />
-                <div className="garment-grid">
-                  {Array.from({ length: 6 }, (_, i) => (
-                    <div key={i} className="skeleton card" />
-                  ))}
-                </div>
-              </section>
-            ) : loadState === "error" ? (
-              <section className="empty">
-                <h2>We couldn’t load your wardrobe.</h2>
-                <p role="alert" className="muted">
-                  {loadError}
-                </p>
-                <button
-                  className="primary"
-                  onClick={() => reload((v) => v + 1)}
+            <Suspense fallback={<PageLoading />}>
+              {page === "privacy" ? (
+                <Privacy />
+              ) : loadState === "loading" ? (
+                <section
+                  className="loading"
+                  role="status"
+                  aria-label="Opening your wardrobe…"
                 >
-                  Try again
-                </button>
-              </section>
-            ) : !access ? (
-              <section className="empty">
-                <h1>Your account is ready.</h1>
-                <p className="muted">
-                  Wardrobe access hasn’t been enabled for this account yet. Ask
-                  the owner for an invitation.
-                </p>
-                <button className="secondary" onClick={signOut}>
-                  Sign out
-                </button>
-              </section>
-            ) : page === "outfits" ? (
-              <OutfitStudio
-                items={items}
-                preferences={savedPrefs}
-                feedback={feedback}
-                onEdit={(item) => setViewed(item)}
-                onRecord={recordLook}
-                onRate={rateLook}
-                onAdd={() => {
-                  setPage("wardrobe");
-                  setAddOpen(true);
-                }}
-              />
-            ) : page === "preferences" ? (
-              <SettingsPage
-                prefs={prefs}
-                dirty={preferencesDirty}
-                busy={busy}
-                demo={demo}
-                email={session?.user.email || ""}
-                onChange={setPrefs}
-                onSave={savePrefs}
-                onDiscard={() => setPrefs(savedPrefs)}
-                onExport={exportData}
-                onClear={() => {
-                  setError("");
-                  setConfirmAction("clear");
-                }}
-                onPrivacy={() => setPage("privacy")}
-                onSignIn={signIn}
-                onSignOut={signOut}
-              />
-            ) : (
-              <WardrobePage
-                items={items}
-                busy={busy}
-                online={online}
-                onAdd={() => setAddOpen(true)}
-                onView={setViewed}
-                onAssign={setAssignmentId}
-                onExportAll={exportData}
-                onExportSelected={(selected) =>
-                  download("wardrobe-selected.json", {
-                    items: selected,
-                    exported_at: new Date().toISOString(),
-                  })
-                }
-                onSaveItem={importItem}
-                onStyle={() => setPage("outfits")}
-                onError={setError}
-                onNotice={setNotice}
-                setBusy={setBusy}
-              />
-            )}
+                  <div className="skeleton head" />
+                  <div className="garment-grid">
+                    {Array.from({ length: 6 }, (_, i) => (
+                      <div key={i} className="skeleton card" />
+                    ))}
+                  </div>
+                </section>
+              ) : loadState === "error" ? (
+                <section className="empty">
+                  <h2>We couldn’t load your wardrobe.</h2>
+                  <p role="alert" className="muted">
+                    {loadError}
+                  </p>
+                  <button
+                    className="primary"
+                    onClick={() => reload((v) => v + 1)}
+                  >
+                    Try again
+                  </button>
+                </section>
+              ) : !access ? (
+                <section className="empty">
+                  <h1>Your account is ready.</h1>
+                  <p className="muted">
+                    Wardrobe access hasn’t been enabled for this account yet.
+                    Ask the owner for an invitation.
+                  </p>
+                  <button className="secondary" onClick={signOut}>
+                    Sign out
+                  </button>
+                </section>
+              ) : page === "outfits" ? (
+                <OutfitStudio
+                  initialOccasion={styleOccasion}
+                  items={items}
+                  preferences={savedPrefs}
+                  feedback={feedback}
+                  onEdit={(item) => setViewed(item)}
+                  onRecord={recordLook}
+                  onRate={rateLook}
+                  onAdd={() => {
+                    setPage("wardrobe");
+                    setAddOpen(true);
+                  }}
+                />
+              ) : page === "preferences" ? (
+                <SettingsPage
+                  prefs={prefs}
+                  dirty={preferencesDirty}
+                  busy={busy}
+                  demo={demo}
+                  email={session?.user.email || ""}
+                  onChange={setPrefs}
+                  onSave={savePrefs}
+                  onDiscard={() => setPrefs(savedPrefs)}
+                  onExport={exportData}
+                  onClear={() => {
+                    setError("");
+                    setConfirmAction("clear");
+                  }}
+                  onPrivacy={() => setPage("privacy")}
+                  onSignIn={signIn}
+                  onSignOut={signOut}
+                />
+              ) : (
+                <WardrobePage
+                  items={items}
+                  busy={busy}
+                  online={online}
+                  onAdd={() => setAddOpen(true)}
+                  onView={setViewed}
+                  onAssign={setAssignmentId}
+                  onExportAll={exportData}
+                  onExportSelected={(selected) =>
+                    download("wardrobe-selected.json", {
+                      items: selected,
+                      exported_at: new Date().toISOString(),
+                    })
+                  }
+                  onSaveItem={importItem}
+                  onStyle={(occasion) => {
+                    setStyleOccasion(occasion || "casual");
+                    setPage("outfits");
+                  }}
+                  onError={setError}
+                  onNotice={setNotice}
+                  setBusy={setBusy}
+                />
+              )}
+            </Suspense>
           </main>
         </div>
         <nav className="tabbar" aria-label="Mobile navigation">
@@ -710,9 +810,21 @@ export function App() {
   return (
     <>
       {content}
-      {notice && (
+      {toast && (
         <div className="toast" role="status">
-          <Icon name="check" /> {notice}
+          <Icon name="check" /> {toast.text}
+          {toast.undo && (
+            <button
+              className="toast-action"
+              onClick={() => {
+                const undo = toast.undo!;
+                setToast(null);
+                undo();
+              }}
+            >
+              Undo
+            </button>
+          )}
         </div>
       )}
       {addOpen && (
@@ -734,14 +846,38 @@ export function App() {
           }}
         />
       )}
-      {assignmentId && items.find((i) => i.item_id === assignmentId) && (
-        <AssignmentReview
-          key={`${demo ? "demo" : session?.user.id}:${assignmentId}`}
-          item={items.find((i) => i.item_id === assignmentId)!}
-          onSave={importItem}
-          onClose={() => setAssignmentId(null)}
-        />
-      )}
+      <Suspense fallback={null}>
+        {assignmentId && items.find((i) => i.item_id === assignmentId) && (
+          <AssignmentReview
+            key={`${demo ? "demo" : session?.user.id}:${assignmentId}`}
+            item={items.find((i) => i.item_id === assignmentId)!}
+            onSave={importItem}
+            onClose={() => setAssignmentId(null)}
+          />
+        )}
+        {importOpen && (
+          <BulkImport
+            key={demo ? "demo" : session?.user.id || "signed-out"}
+            items={items}
+            onSave={importItem}
+            onClose={() => setImportOpen(false)}
+          />
+        )}
+        {authOpen && (
+          <AuthDialog
+            open={authOpen}
+            mode={authMode}
+            onMode={setAuthMode}
+            onClose={() => setAuthOpen(false)}
+            onSignedIn={() => {
+              setError("");
+              setDemo(false);
+              setAuthOpen(false);
+            }}
+            onNotice={setNotice}
+          />
+        )}
+      </Suspense>
       {viewed && (
         <GarmentDetails
           item={viewed}
@@ -750,19 +886,20 @@ export function App() {
             setViewed(null);
           }}
           onClose={() => setViewed(null)}
+          onArchive={
+            online
+              ? () => {
+                  const item = viewed;
+                  setViewed(null);
+                  void toggleArchive(item);
+                }
+              : undefined
+          }
           onEdit={() => {
             const item = viewed;
             setViewed(null);
             openEditor(item);
           }}
-        />
-      )}
-      {importOpen && (
-        <BulkImport
-          key={demo ? "demo" : session?.user.id || "signed-out"}
-          items={items}
-          onSave={importItem}
-          onClose={() => setImportOpen(false)}
         />
       )}
       <ItemEditor
@@ -843,18 +980,6 @@ export function App() {
           </button>
         </div>
       </dialog>
-      <AuthDialog
-        open={authOpen}
-        mode={authMode}
-        onMode={setAuthMode}
-        onClose={() => setAuthOpen(false)}
-        onSignedIn={() => {
-          setError("");
-          setDemo(false);
-          setAuthOpen(false);
-        }}
-        onNotice={setNotice}
-      />
     </>
   );
 }

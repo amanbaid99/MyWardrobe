@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { Item } from "./domain";
-import { supabase } from "./client";
+import { db } from "./db";
 import {
   assignmentLabels,
   assignmentOptions,
@@ -55,7 +55,7 @@ export function AssignmentReview({
     setError("");
     setMessage("");
     try {
-      const { data } = await supabase.auth.getSession();
+      const { data } = await (await db()).auth.getSession();
       if (!data.session)
         throw Error(
           "Sign in to use AI suggestions. You can still assign details manually.",

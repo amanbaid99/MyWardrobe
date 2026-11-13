@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { supabase } from "./client";
+import { db } from "./db";
 import { EmailSignIn } from "./EmailSignIn";
 import { authMessage, normalizeEmail } from "./auth";
 import { Icon } from "./Icon";
@@ -40,19 +40,23 @@ export function AuthDialog({
     setError("");
     try {
       if (mode === "reset") {
-        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        const { error } = await (
+          await db()
+        ).auth.resetPasswordForEmail(email, {
           redirectTo: location.origin,
         });
         if (error) throw error;
         onNotice("If an account exists, check your inbox for a reset link.");
         onClose();
       } else if (mode === "update") {
-        const { error } = await supabase.auth.updateUser({ password });
+        const { error } = await (await db()).auth.updateUser({ password });
         if (error) throw error;
         onClose();
         onNotice("Password updated for your shared account.");
       } else if (mode === "signup") {
-        const { error } = await supabase.auth.signUp({
+        const { error } = await (
+          await db()
+        ).auth.signUp({
           email,
           password,
           options: { emailRedirectTo: location.origin },
@@ -63,7 +67,9 @@ export function AuthDialog({
         );
         onClose();
       } else {
-        const { error } = await supabase.auth.signInWithPassword({
+        const { error } = await (
+          await db()
+        ).auth.signInWithPassword({
           email,
           password,
         });

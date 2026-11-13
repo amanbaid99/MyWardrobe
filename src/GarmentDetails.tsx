@@ -9,11 +9,13 @@ export function GarmentDetails({
   onClose,
   onEdit,
   onAssign,
+  onArchive,
 }: {
   item: Item;
   onClose: () => void;
   onEdit: () => void;
   onAssign?: () => void;
+  onArchive?: () => void;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {
@@ -88,6 +90,12 @@ export function GarmentDetails({
         )}
       </div>
       <div className="sheet-foot">
+        {onArchive && (
+          <button className="ghost small foot-left" onClick={onArchive}>
+            <Icon name="archive" />
+            {item.lifecycle_status === "active" ? "Archive" : "Restore"}
+          </button>
+        )}
         <button className="secondary" onClick={onClose}>
           Close
         </button>

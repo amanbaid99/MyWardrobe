@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { supabase } from "./client";
+import { db } from "./db";
 import {
   authMessage,
   normalizeEmail,
@@ -38,7 +38,7 @@ export function EmailSignIn({
     setBusy(true);
     setError("");
     try {
-      const { error } = await requestEmailCode(supabase.auth, email);
+      const { error } = await requestEmailCode((await db()).auth, email);
       if (error) throw error;
       setEmail(normalizeEmail(email));
       setSent(true);
@@ -57,7 +57,11 @@ export function EmailSignIn({
     setBusy(true);
     setError("");
     try {
-      const { data, error } = await verifyEmailCode(supabase.auth, email, code);
+      const { data, error } = await verifyEmailCode(
+        (await db()).auth,
+        email,
+        code,
+      );
       if (error) throw error;
       if (!data.session)
         throw new Error("Sign-in did not finish. Please request a new code.");

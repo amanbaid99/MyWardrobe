@@ -41,6 +41,9 @@ Applied migration: `supabase/migrations/20261111111732_wardrobe_foundation.sql`.
 - `src/SettingsPage.tsx`: account, style profile, appearance (system/light/dark via `src/theme.ts`), data export/clear.
 - `src/Garment.tsx`: deterministic SVG illustrations, a distinct drawing per garment type (sleeve length, pattern and colour aware); no stored garment images.
 - `src/Choices.tsx`: chip, colour and fit pickers.
+- `src/filters.ts` (+ `filters.test.ts`): occasion/colour/use/season/fit/pattern/condition filtering, live counts and sorting; `src/FilterSheet.tsx` is its UI.
+- `src/db.ts`: lazy loader for the Supabase client (`src/client.ts`) so it stays out of the entry bundle.
+- `vite.config.ts`: puts React in its own long-cached chunk; heavier screens and dialogs are `React.lazy` chunks declared at the top of `main.tsx`.
 - `src/style.css`: single token-based design system with light and dark themes.
 - `src/domain.ts`: contract, sample fixtures (`samples` for tests, `demoWardrobe` for sample mode), duplicate warning and outfit engine.
 - `public/`: PWA manifest, icons and non-caching service worker.

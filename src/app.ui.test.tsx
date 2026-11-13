@@ -1,5 +1,11 @@
 import { beforeEach, expect, test, vi } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import {
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { App } from "./main";
 import { OutfitStudio } from "./OutfitStudio";
 import { EmailSignIn } from "./EmailSignIn";
@@ -248,7 +254,7 @@ test("inventory highlights missing assignments and opens the review from its fil
     screen.getAllByRole("button", { name: /^Assign details/ })[0],
   );
   expect(
-    screen.getByRole("dialog", { name: "Assign missing details" }),
+    await screen.findByRole("dialog", { name: "Assign missing details" }),
   ).toBeTruthy();
   expect(
     (
@@ -279,4 +285,40 @@ test("sample mode add sheet offers manual entry and keeps AI capture behind sign
     (screen.getByRole("button", { name: /Add manually/ }) as HTMLButtonElement)
       .disabled,
   ).toBe(false);
+});
+
+test("occasion filter shows only formal pieces and the filter sheet narrows by colour", async () => {
+  render(<App />);
+  fireEvent.click(
+    screen.getByRole("button", { name: "Explore a sample wardrobe" }),
+  );
+  await screen.findByRole("heading", { name: /My wardrobe/ });
+  const bar = screen.getByRole("group", { name: "Filter by occasion" });
+  fireEvent.click(within(bar).getByRole("button", { name: /^Formal/ }));
+  expect(screen.getByText("Navy blazer")).toBeTruthy();
+  expect(screen.queryByText("Everyday tee")).toBeNull();
+  expect(screen.queryByText("Court sneakers")).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: /^Filters/ }));
+  const sheet = screen.getByRole("dialog", { name: "Filter & sort" });
+  fireEvent.click(within(sheet).getByRole("button", { name: /^White/ }));
+  expect(screen.getByText("White formal shirt")).toBeTruthy();
+  expect(screen.queryByText("Navy blazer")).toBeNull();
+  fireEvent.click(within(sheet).getByRole("button", { name: "Clear all" }));
+  expect(screen.getByText("Everyday tee")).toBeTruthy();
+});
+
+test("archiving from the detail sheet can be undone from the toast", async () => {
+  render(<App />);
+  fireEvent.click(
+    screen.getByRole("button", { name: "Explore a sample wardrobe" }),
+  );
+  await screen.findByRole("heading", { name: /My wardrobe/ });
+  fireEvent.click(screen.getByRole("button", { name: /Oxford shirt/ }));
+  fireEvent.click(screen.getByRole("button", { name: "Archive" }));
+  expect(await screen.findByText("Oxford shirt archived.")).toBeTruthy();
+  expect(screen.queryByRole("button", { name: /Oxford shirt/ })).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+  expect(
+    await screen.findByRole("button", { name: /Oxford shirt/ }),
+  ).toBeTruthy();
 });

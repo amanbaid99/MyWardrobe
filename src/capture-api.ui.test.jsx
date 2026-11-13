@@ -214,16 +214,12 @@ test("assignment suggestions use the recommendation prompt with existing quota a
   vi.stubEnv("OPENROUTER_MODEL", "example/test:free");
   mocks.getUser.mockResolvedValue({ data: { user: { id: "user" } } });
   mocks.rpc.mockResolvedValue({ error: null });
-  const network = vi
-    .fn()
-    .mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        choices: [
-          { message: { content: '{"items":[{"formality":"smart"}]}' } },
-        ],
-      }),
-    });
+  const network = vi.fn().mockResolvedValue({
+    ok: true,
+    json: async () => ({
+      choices: [{ message: { content: '{"items":[{"formality":"smart"}]}' } }],
+    }),
+  });
   vi.stubGlobal("fetch", network);
   const r = response();
   await handler(

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { captureBatches } from "./captureText";
 import { canonicalSubtype, mergeItem } from "./domain";
-import { supabase } from "./client";
+import { db } from "./db";
 import { categories, labels, colours, duplicates, type Item } from "./domain";
 import { parseImport, validateImport, type ImportRow } from "./import";
 export function BulkImport({
@@ -94,7 +94,7 @@ export function BulkImport({
     setReading(true);
     setError("");
     try {
-      const { data } = await supabase.auth.getSession();
+      const { data } = await (await db()).auth.getSession();
       if (!data.session)
         throw new Error(
           "Sign in to use AI capture. Manual entry and sample browsing remain available.",

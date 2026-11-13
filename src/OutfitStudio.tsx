@@ -25,6 +25,7 @@ export function OutfitStudio({
   onRecord,
   onRate,
   onAdd,
+  initialOccasion = "casual",
 }: {
   items: Item[];
   preferences: Preferences;
@@ -38,8 +39,9 @@ export function OutfitStudio({
     look: Look,
   ) => Promise<void>;
   onAdd?: () => void;
+  initialOccasion?: string;
 }) {
-  const [occasion, setOccasion] = useState("casual"),
+  const [occasion, setOccasion] = useState(initialOccasion),
     [request, setRequest] = useState(""),
     [look, setLook] = useState<Look | null>(null),
     [history, setHistory] = useState<string[]>([]),
@@ -60,6 +62,16 @@ export function OutfitStudio({
   const activeCount = items.filter(
     (i) => i.lifecycle_status === "active",
   ).length;
+  const eligible = (occ: string) =>
+    items.filter(
+      (i) =>
+        i.lifecycle_status === "active" &&
+        (occ === "formal"
+          ? i.formality === "formal"
+          : occ === "smart"
+            ? ["smart", "formal"].includes(i.formality)
+            : true),
+    ).length;
 
   async function generate() {
     if (busy) return;
@@ -153,7 +165,10 @@ export function OutfitStudio({
             <Chips
               label="Occasion"
               value={occasion}
-              options={occasions}
+              options={occasions.map((o) => ({
+                ...o,
+                label: `${o.label} · ${eligible(o.value)}`,
+              }))}
               onChange={(v) => !busy && setOccasion(v)}
             />
           </div>

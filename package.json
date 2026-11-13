@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "tsc --noEmit && vite build",
-    "test": "node --experimental-strip-types --test src/domain.test.ts src/auth.test.ts src/import.test.ts src/captureText.test.ts tests/database.test.mjs",
+    "test": "node --experimental-strip-types --test src/domain.test.ts src/auth.test.ts src/import.test.ts src/captureText.test.ts src/filters.test.ts tests/database.test.mjs",
     "format": "prettier --write src tests README.md docs/*.md package.json tsconfig.json index.html",
     "test:ui": "vitest run"
   },
